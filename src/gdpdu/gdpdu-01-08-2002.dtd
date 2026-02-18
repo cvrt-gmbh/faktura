@@ -1,0 +1,52 @@
+<!-- Version 1.0 - 01.08.2002 -->
+<!-- GDPdU - Beschreibungsstandard fuer die Datentraegerueberlassung -->
+
+<!ELEMENT DataSet (Extension*, Version, DataSupplier?, Command*, Media+, Command*)>
+<!ELEMENT Version (#PCDATA)>
+<!ELEMENT DataSupplier (Name, Location, Comment)>
+<!ELEMENT Media (Name, Command*, Table*, Command*, AcceptNoTables?)>
+<!ELEMENT Table (URL, Name?, Description?, Validity?, (ANSI | Macintosh | OEM | UTF16 | UTF7 | UTF8)?, (DecimalSymbol, DigitGroupingSymbol)?, SkipNumBytes?, Range?, Epoch?, (VariableLength | FixedLength))>
+<!ELEMENT Validity (Range, Format?)>
+<!ELEMENT Range (From, (To | Length)?)>
+<!ELEMENT VariableLength (ColumnDelimiter?, RecordDelimiter?, TextEncapsulator?, ((VariablePrimaryKey+, VariableColumn*) | (VariableColumn+)), ForeignKey*)>
+<!ELEMENT VariableColumn (Name, Description?, (Numeric | (AlphaNumeric, MaxLength?) | Date), Map*)>
+<!ELEMENT VariablePrimaryKey (Name, Description?, (Numeric | (AlphaNumeric, MaxLength?) | Date), Map*)>
+<!ELEMENT FixedLength ((Length | RecordDelimiter)?, ((FixedPrimaryKey+, FixedColumn*) | (FixedColumn+)), ForeignKey*)>
+<!ELEMENT FixedColumn (Name, Description?, (Numeric | AlphaNumeric | Date), Map*, FixedRange)>
+<!ELEMENT FixedPrimaryKey (Name, Description?, (Numeric | AlphaNumeric | Date), Map*, FixedRange)>
+<!ELEMENT FixedRange (From, (To | Length))>
+<!ELEMENT ForeignKey (Name+, References, Alias*)>
+<!ELEMENT Alias (From, To)>
+<!ELEMENT Map (Description?, From, To)>
+<!ELEMENT Extension (Name, URL)>
+<!ELEMENT AlphaNumeric EMPTY>
+<!ELEMENT Numeric ((ImpliedAccuracy | Accuracy)?)>
+<!ELEMENT Date (Format?)>
+<!ELEMENT ANSI EMPTY>
+<!ELEMENT Macintosh EMPTY>
+<!ELEMENT OEM EMPTY>
+<!ELEMENT UTF16 EMPTY>
+<!ELEMENT UTF7 EMPTY>
+<!ELEMENT UTF8 EMPTY>
+<!ELEMENT Accuracy (#PCDATA)>
+<!ELEMENT ImpliedAccuracy (#PCDATA)>
+<!ELEMENT Format (#PCDATA)>
+<!ELEMENT DecimalSymbol (#PCDATA)>
+<!ELEMENT DigitGroupingSymbol (#PCDATA)>
+<!ELEMENT ColumnDelimiter (#PCDATA)>
+<!ELEMENT RecordDelimiter (#PCDATA)>
+<!ELEMENT TextEncapsulator (#PCDATA)>
+<!ELEMENT SkipNumBytes (#PCDATA)>
+<!ELEMENT Epoch (#PCDATA)>
+<!ELEMENT AcceptNoTables (#PCDATA)>
+<!ELEMENT URL (#PCDATA)>
+<!ELEMENT Name (#PCDATA)>
+<!ELEMENT Description (#PCDATA)>
+<!ELEMENT Comment (#PCDATA)>
+<!ELEMENT Location (#PCDATA)>
+<!ELEMENT Length (#PCDATA)>
+<!ELEMENT From (#PCDATA)>
+<!ELEMENT To (#PCDATA)>
+<!ELEMENT References (#PCDATA)>
+<!ELEMENT MaxLength (#PCDATA)>
+<!ELEMENT Command (#PCDATA)>

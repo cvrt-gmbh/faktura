@@ -1,0 +1,39 @@
+[package]
+name = "faktura"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Comprehensive German e-invoicing library — XRechnung, ZUGFeRD, DATEV, GDPdU, VAT, Peppol"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cvrt-gmbh/faktura"
+keywords = ["invoice", "xrechnung", "zugferd", "datev", "german"]
+categories = ["finance", "encoding"]
+
+[features]
+default = ["core"]
+core = []
+xrechnung = ["core", "dep:quick-xml"]
+zugferd = ["core", "xrechnung", "dep:lopdf"]
+datev = ["core"]
+gdpdu = ["core", "dep:quick-xml"]
+vat = ["core", "dep:reqwest", "dep:serde_json"]
+peppol = ["core", "xrechnung"]
+all = ["core", "xrechnung", "zugferd", "datev", "gdpdu", "vat", "peppol"]
+
+[dependencies]
+chrono = { version = "0.4", features = ["serde"] }
+rust_decimal = { version = "1", features = ["serde-with-str"] }
+rust_decimal_macros = "1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+# Optional dependencies
+quick-xml = { version = "0.37", features = ["serialize"], optional = true }
+lopdf = { version = "0.34", optional = true }
+reqwest = { version = "0.12", features = ["json"], optional = true }
+serde_json = { version = "1", optional = true }
+
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+serde_json = "1"
