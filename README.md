@@ -1,5 +1,10 @@
 # faktura
 
+[![crates.io](https://img.shields.io/crates/v/faktura)](https://crates.io/crates/faktura)
+[![docs.rs](https://img.shields.io/docsrs/faktura)](https://docs.rs/faktura)
+[![CI](https://img.shields.io/github/actions/workflow/status/cvrt-gmbh/faktura/ci.yml?label=CI)](https://github.com/cvrt-gmbh/faktura/actions)
+[![license](https://img.shields.io/crates/l/faktura)](LICENSE-MIT)
+
 Comprehensive German e-invoicing library for Rust.
 
 Covers the full invoice lifecycle: creation, validation, XML generation (XRechnung/ZUGFeRD/Peppol), accounting export (DATEV/GDPdU), and VAT handling.
