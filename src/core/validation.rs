@@ -263,6 +263,7 @@ pub fn calculate_totals(invoice: &mut Invoice, prepaid: Decimal) {
         charges_total,
         net_total,
         vat_total,
+        vat_total_in_tax_currency: None,
         gross_total,
         prepaid,
         amount_due,

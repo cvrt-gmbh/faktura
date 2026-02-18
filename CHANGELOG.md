@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2026-02-18
+
+### Added
+
+- **core**: Item attributes (BT-160/BT-161) — `ItemAttribute { name, value }` on `LineItem` for product classification, serial numbers, etc.
+- **core**: Line-level invoicing period (BG-26) — `invoicing_period: Option<Period>` on `LineItem` for per-line billing periods
+- **core**: Preceding invoice reference (BT-25/BT-26) — `PrecedingInvoiceReference { number, issue_date }` for credit note and correction invoice references
+- **core**: Tax currency support (BT-6/BT-111) — `tax_currency_code` on `Invoice` and `vat_total_in_tax_currency` on `Totals` for multi-currency VAT reporting
+- **core**: Document attachments (BG-24) — `DocumentAttachment` with optional `EmbeddedDocument` (base64 binary) or external URI, limit 100 per invoice
+- **xrechnung**: UBL serialization and parsing for all 5 new business groups
+- **xrechnung**: CII serialization and parsing for all 5 new business groups
+- **tests**: 21 new tests — builder, generation, and roundtrip tests for each feature in both UBL and CII
+
 ## [0.1.5] - 2026-02-18
 
 ### Added

@@ -30,6 +30,8 @@ pub struct InvoiceBuilder {
     due_date: Option<NaiveDate>,
     type_code: InvoiceTypeCode,
     currency_code: String,
+    tax_currency_code: Option<String>,
+    vat_total_in_tax_currency: Option<Decimal>,
     notes: Vec<String>,
     buyer_reference: Option<String>,
     order_reference: Option<String>,
@@ -44,6 +46,8 @@ pub struct InvoiceBuilder {
     tax_point_date: Option<NaiveDate>,
     invoicing_period: Option<Period>,
     prepaid: Decimal,
+    preceding_invoices: Vec<PrecedingInvoiceReference>,
+    attachments: Vec<DocumentAttachment>,
 }
 
 impl InvoiceBuilder {
@@ -55,6 +59,8 @@ impl InvoiceBuilder {
             due_date: None,
             type_code: InvoiceTypeCode::Invoice,
             currency_code: "EUR".to_string(),
+            tax_currency_code: None,
+            vat_total_in_tax_currency: None,
             notes: Vec::new(),
             buyer_reference: None,
             order_reference: None,
@@ -69,6 +75,8 @@ impl InvoiceBuilder {
             tax_point_date: None,
             invoicing_period: None,
             prepaid: Decimal::ZERO,
+            preceding_invoices: Vec::new(),
+            attachments: Vec::new(),
         }
     }
 
@@ -185,6 +193,34 @@ impl InvoiceBuilder {
         self
     }
 
+    /// Add a preceding invoice reference (BG-3, BT-25/BT-26).
+    /// Used for credit notes and corrected invoices.
+    pub fn add_preceding_invoice(
+        mut self,
+        number: impl Into<String>,
+        issue_date: Option<NaiveDate>,
+    ) -> Self {
+        self.preceding_invoices.push(PrecedingInvoiceReference {
+            number: number.into(),
+            issue_date,
+        });
+        self
+    }
+
+    /// Set the tax currency code (BT-6) and VAT total in that currency (BT-111).
+    /// Use when VAT must be reported in a currency different from the document currency.
+    pub fn tax_currency(mut self, code: impl Into<String>, tax_total: Decimal) -> Self {
+        self.tax_currency_code = Some(code.into());
+        self.vat_total_in_tax_currency = Some(tax_total);
+        self
+    }
+
+    /// Add a document attachment (BG-24). Maximum 100 attachments.
+    pub fn add_attachment(mut self, attachment: DocumentAttachment) -> Self {
+        self.attachments.push(attachment);
+        self
+    }
+
     /// Build the invoice, calculating totals and running validation.
     /// Returns all validation errors (not just the first).
     pub fn build(self) -> Result<Invoice, RechnungError> {
@@ -217,6 +253,11 @@ impl InvoiceBuilder {
                 "invoice cannot have more than 100 notes".into(),
             ));
         }
+        if self.attachments.len() > 100 {
+            return Err(RechnungError::Builder(
+                "invoice cannot have more than 100 attachments".into(),
+            ));
+        }
 
         let mut invoice = Invoice {
             number: self.number,
@@ -224,6 +265,7 @@ impl InvoiceBuilder {
             due_date: self.due_date,
             type_code: self.type_code,
             currency_code: self.currency_code,
+            tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
             order_reference: self.order_reference,
@@ -238,10 +280,19 @@ impl InvoiceBuilder {
             payment: self.payment,
             tax_point_date: self.tax_point_date,
             invoicing_period: self.invoicing_period,
+            preceding_invoices: self.preceding_invoices,
+            attachments: self.attachments,
         };
 
         // Calculate totals
         validation::calculate_totals(&mut invoice, self.prepaid);
+
+        // Set tax currency total if provided
+        if let (Some(totals), Some(tax_total)) =
+            (invoice.totals.as_mut(), self.vat_total_in_tax_currency)
+        {
+            totals.vat_total_in_tax_currency = Some(tax_total);
+        }
 
         // Run §14 UStG validation
         let errors = validation::validate_14_ustg(&invoice);
@@ -266,12 +317,14 @@ impl InvoiceBuilder {
             .buyer
             .ok_or_else(|| RechnungError::Builder("buyer is required".into()))?;
 
+        let vat_total_in_tax_currency = self.vat_total_in_tax_currency;
         let mut invoice = Invoice {
             number: self.number,
             issue_date: self.issue_date,
             due_date: self.due_date,
             type_code: self.type_code,
             currency_code: self.currency_code,
+            tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
             order_reference: self.order_reference,
@@ -286,9 +339,18 @@ impl InvoiceBuilder {
             payment: self.payment,
             tax_point_date: self.tax_point_date,
             invoicing_period: self.invoicing_period,
+            preceding_invoices: self.preceding_invoices,
+            attachments: self.attachments,
         };
 
         validation::calculate_totals(&mut invoice, self.prepaid);
+
+        if let (Some(totals), Some(tax_total)) =
+            (invoice.totals.as_mut(), vat_total_in_tax_currency)
+        {
+            totals.vat_total_in_tax_currency = Some(tax_total);
+        }
+
         Ok(invoice)
     }
 }
@@ -455,6 +517,8 @@ pub struct LineItemBuilder {
     description: Option<String>,
     seller_item_id: Option<String>,
     standard_item_id: Option<String>,
+    attributes: Vec<ItemAttribute>,
+    invoicing_period: Option<Period>,
 }
 
 impl LineItemBuilder {
@@ -483,6 +547,8 @@ impl LineItemBuilder {
             description: None,
             seller_item_id: None,
             standard_item_id: None,
+            attributes: Vec::new(),
+            invoicing_period: None,
         }
     }
 
@@ -530,6 +596,21 @@ impl LineItemBuilder {
         self
     }
 
+    /// Add an item attribute (BT-160/BT-161).
+    pub fn add_attribute(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
+        self.attributes.push(ItemAttribute {
+            name: name.into(),
+            value: value.into(),
+        });
+        self
+    }
+
+    /// Set the line-level invoicing period (BG-26).
+    pub fn invoicing_period(mut self, start: NaiveDate, end: NaiveDate) -> Self {
+        self.invoicing_period = Some(Period { start, end });
+        self
+    }
+
     pub fn build(self) -> LineItem {
         LineItem {
             id: self.id,
@@ -546,6 +627,8 @@ impl LineItemBuilder {
             seller_item_id: self.seller_item_id,
             standard_item_id: self.standard_item_id,
             line_amount: None,
+            attributes: self.attributes,
+            invoicing_period: self.invoicing_period,
         }
     }
 }

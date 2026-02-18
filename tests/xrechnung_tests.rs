@@ -895,6 +895,589 @@ fn ubl_parse_cii_xml_as_ubl() {
     let _ = result;
 }
 
+// ===========================================================================
+// Feature 1: Item Attributes (BT-160/BT-161)
+// ===========================================================================
+
+fn invoice_with_item_attributes() -> Invoice {
+    InvoiceBuilder::new("RE-2024-030", date(2024, 6, 15))
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Laptop", dec!(2), "C62", dec!(999.99))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .add_attribute("Color", "Silver")
+                .add_attribute("RAM", "16GB")
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: Some("RE-2024-030".into()),
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: Some("COBADEFFXXX".into()),
+                account_name: Some("ACME GmbH".into()),
+            }),
+        })
+        .build()
+        .expect("valid invoice with item attributes")
+}
+
+#[test]
+fn item_attributes_ubl_generation() {
+    let inv = invoice_with_item_attributes();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    assert!(xml.contains("cac:AdditionalItemProperty"));
+    assert!(xml.contains("<cbc:Name>Color</cbc:Name>"));
+    assert!(xml.contains("<cbc:Value>Silver</cbc:Value>"));
+    assert!(xml.contains("<cbc:Name>RAM</cbc:Name>"));
+    assert!(xml.contains("<cbc:Value>16GB</cbc:Value>"));
+}
+
+#[test]
+fn item_attributes_ubl_roundtrip() {
+    let original = invoice_with_item_attributes();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.lines[0].attributes.len(), 2);
+    assert_eq!(parsed.lines[0].attributes[0].name, "Color");
+    assert_eq!(parsed.lines[0].attributes[0].value, "Silver");
+    assert_eq!(parsed.lines[0].attributes[1].name, "RAM");
+    assert_eq!(parsed.lines[0].attributes[1].value, "16GB");
+}
+
+#[test]
+fn item_attributes_cii_generation() {
+    let inv = invoice_with_item_attributes();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    assert!(xml.contains("ram:ApplicableProductCharacteristic"));
+    assert!(xml.contains("<ram:Description>Color</ram:Description>"));
+    assert!(xml.contains("<ram:Value>Silver</ram:Value>"));
+    assert!(xml.contains("<ram:Description>RAM</ram:Description>"));
+    assert!(xml.contains("<ram:Value>16GB</ram:Value>"));
+}
+
+#[test]
+fn item_attributes_cii_roundtrip() {
+    let original = invoice_with_item_attributes();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    assert_eq!(parsed.lines[0].attributes.len(), 2);
+    assert_eq!(parsed.lines[0].attributes[0].name, "Color");
+    assert_eq!(parsed.lines[0].attributes[0].value, "Silver");
+    assert_eq!(parsed.lines[0].attributes[1].name, "RAM");
+    assert_eq!(parsed.lines[0].attributes[1].value, "16GB");
+}
+
+// ===========================================================================
+// Feature 2: Line-Level Invoicing Period (BG-26)
+// ===========================================================================
+
+fn invoice_with_line_period() -> Invoice {
+    InvoiceBuilder::new("RE-2024-031", date(2024, 6, 15))
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Hosting Monat Juni", dec!(1), "C62", dec!(49.90))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .invoicing_period(date(2024, 6, 1), date(2024, 6, 30))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+        })
+        .build()
+        .expect("valid invoice with line period")
+}
+
+#[test]
+fn line_period_ubl_generation() {
+    let inv = invoice_with_line_period();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    // Line-level InvoicePeriod inside InvoiceLine
+    assert!(xml.contains("<cbc:StartDate>2024-06-01</cbc:StartDate>"));
+    assert!(xml.contains("<cbc:EndDate>2024-06-30</cbc:EndDate>"));
+}
+
+#[test]
+fn line_period_ubl_roundtrip() {
+    let original = invoice_with_line_period();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    let period = parsed.lines[0].invoicing_period.as_ref().unwrap();
+    assert_eq!(period.start, date(2024, 6, 1));
+    assert_eq!(period.end, date(2024, 6, 30));
+}
+
+#[test]
+fn line_period_cii_generation() {
+    let inv = invoice_with_line_period();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    assert!(xml.contains("ram:BillingSpecifiedPeriod"));
+    assert!(xml.contains("20240601"));
+    assert!(xml.contains("20240630"));
+}
+
+#[test]
+fn line_period_cii_roundtrip() {
+    let original = invoice_with_line_period();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    let period = parsed.lines[0].invoicing_period.as_ref().unwrap();
+    assert_eq!(period.start, date(2024, 6, 1));
+    assert_eq!(period.end, date(2024, 6, 30));
+}
+
+// ===========================================================================
+// Feature 3: Preceding Invoice Reference (BT-25/BT-26)
+// ===========================================================================
+
+fn invoice_with_preceding_reference() -> Invoice {
+    InvoiceBuilder::new("GS-2024-010", date(2024, 7, 1))
+        .type_code(InvoiceTypeCode::CreditNote)
+        .due_date(date(2024, 7, 31))
+        .tax_point_date(date(2024, 7, 1))
+        .buyer_reference("04011000-12345-03")
+        .add_preceding_invoice("RE-2024-001", Some(date(2024, 6, 15)))
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Gutschrift Beratung", dec!(2), "HUR", dec!(120))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+        })
+        .build()
+        .expect("valid credit note with preceding invoice")
+}
+
+#[test]
+fn preceding_invoice_ubl_generation() {
+    let inv = invoice_with_preceding_reference();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    assert!(xml.contains("cac:BillingReference"));
+    assert!(xml.contains("cac:InvoiceDocumentReference"));
+    assert!(xml.contains("<cbc:ID>RE-2024-001</cbc:ID>"));
+    assert!(xml.contains("<cbc:IssueDate>2024-06-15</cbc:IssueDate>"));
+}
+
+#[test]
+fn preceding_invoice_ubl_roundtrip() {
+    let original = invoice_with_preceding_reference();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.preceding_invoices.len(), 1);
+    assert_eq!(parsed.preceding_invoices[0].number, "RE-2024-001");
+    assert_eq!(
+        parsed.preceding_invoices[0].issue_date,
+        Some(date(2024, 6, 15))
+    );
+}
+
+#[test]
+fn preceding_invoice_cii_generation() {
+    let inv = invoice_with_preceding_reference();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    assert!(xml.contains("ram:InvoiceReferencedDocument"));
+    assert!(xml.contains("<ram:IssuerAssignedID>RE-2024-001</ram:IssuerAssignedID>"));
+    assert!(xml.contains("20240615")); // CII date format
+}
+
+#[test]
+fn preceding_invoice_cii_roundtrip() {
+    let original = invoice_with_preceding_reference();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    assert_eq!(parsed.preceding_invoices.len(), 1);
+    assert_eq!(parsed.preceding_invoices[0].number, "RE-2024-001");
+    assert_eq!(
+        parsed.preceding_invoices[0].issue_date,
+        Some(date(2024, 6, 15))
+    );
+}
+
+// ===========================================================================
+// Feature 4: Tax Currency (BT-6 / BT-111)
+// ===========================================================================
+
+fn invoice_with_tax_currency() -> Invoice {
+    InvoiceBuilder::new("RE-2024-032", date(2024, 6, 15))
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .currency("EUR")
+        .tax_currency("GBP", dec!(158.70))
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Beratung", dec!(10), "HUR", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+        })
+        .build()
+        .expect("valid invoice with tax currency")
+}
+
+#[test]
+fn tax_currency_ubl_generation() {
+    let inv = invoice_with_tax_currency();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    assert!(xml.contains("<cbc:TaxCurrencyCode>GBP</cbc:TaxCurrencyCode>"));
+    // Should have two TaxTotal elements
+    assert!(xml.contains("currencyID=\"EUR\""));
+    assert!(xml.contains("currencyID=\"GBP\""));
+    assert!(xml.contains("158.70"));
+}
+
+#[test]
+fn tax_currency_ubl_roundtrip() {
+    let original = invoice_with_tax_currency();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.tax_currency_code, Some("GBP".to_string()));
+    let totals = parsed.totals.as_ref().unwrap();
+    assert_eq!(totals.vat_total_in_tax_currency, Some(dec!(158.70)));
+    assert_eq!(totals.vat_total, dec!(190)); // 1000 * 19%
+}
+
+#[test]
+fn tax_currency_cii_generation() {
+    let inv = invoice_with_tax_currency();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    assert!(xml.contains("<ram:TaxCurrencyCode>GBP</ram:TaxCurrencyCode>"));
+    assert!(xml.contains("currencyID=\"GBP\""));
+    assert!(xml.contains("158.70"));
+}
+
+#[test]
+fn tax_currency_cii_roundtrip() {
+    let original = invoice_with_tax_currency();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    assert_eq!(parsed.tax_currency_code, Some("GBP".to_string()));
+    let totals = parsed.totals.as_ref().unwrap();
+    assert_eq!(totals.vat_total_in_tax_currency, Some(dec!(158.70)));
+}
+
+// ===========================================================================
+// Feature 5: Document Attachments (BG-24)
+// ===========================================================================
+
+fn invoice_with_attachment() -> Invoice {
+    InvoiceBuilder::new("RE-2024-033", date(2024, 6, 15))
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Beratung", dec!(1), "HUR", dec!(200))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .add_attachment(DocumentAttachment {
+            id: Some("ATT-001".into()),
+            description: Some("Timesheet".into()),
+            external_uri: None,
+            embedded_document: Some(EmbeddedDocument {
+                content: "dGVzdA==".into(), // base64("test")
+                mime_type: "application/pdf".into(),
+                filename: "timesheet.pdf".into(),
+            }),
+        })
+        .add_attachment(DocumentAttachment {
+            id: Some("ATT-002".into()),
+            description: Some("External spec".into()),
+            external_uri: Some("https://example.com/spec.pdf".into()),
+            embedded_document: None,
+        })
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+        })
+        .build()
+        .expect("valid invoice with attachments")
+}
+
+#[test]
+fn attachment_ubl_generation() {
+    let inv = invoice_with_attachment();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    assert!(xml.contains("cac:AdditionalDocumentReference"));
+    assert!(xml.contains("<cbc:ID>ATT-001</cbc:ID>"));
+    assert!(xml.contains("<cbc:DocumentDescription>Timesheet</cbc:DocumentDescription>"));
+    assert!(xml.contains("mimeCode=\"application/pdf\""));
+    assert!(xml.contains("filename=\"timesheet.pdf\""));
+    assert!(xml.contains("dGVzdA=="));
+    assert!(xml.contains("<cbc:ID>ATT-002</cbc:ID>"));
+}
+
+#[test]
+fn attachment_ubl_roundtrip() {
+    let original = invoice_with_attachment();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.attachments.len(), 2);
+
+    let att1 = &parsed.attachments[0];
+    assert_eq!(att1.id, Some("ATT-001".to_string()));
+    assert_eq!(att1.description, Some("Timesheet".to_string()));
+    let emb = att1.embedded_document.as_ref().unwrap();
+    assert_eq!(emb.content, "dGVzdA==");
+    assert_eq!(emb.mime_type, "application/pdf");
+    assert_eq!(emb.filename, "timesheet.pdf");
+
+    let att2 = &parsed.attachments[1];
+    assert_eq!(att2.id, Some("ATT-002".to_string()));
+    assert_eq!(att2.description, Some("External spec".to_string()));
+}
+
+#[test]
+fn attachment_cii_generation() {
+    let inv = invoice_with_attachment();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    assert!(xml.contains("ram:AdditionalReferencedDocument"));
+    assert!(xml.contains("<ram:IssuerAssignedID>ATT-001</ram:IssuerAssignedID>"));
+    assert!(xml.contains("<ram:TypeCode>916</ram:TypeCode>"));
+    assert!(xml.contains("<ram:Name>Timesheet</ram:Name>"));
+    assert!(xml.contains("mimeCode=\"application/pdf\""));
+    assert!(xml.contains("dGVzdA=="));
+}
+
+#[test]
+fn attachment_cii_roundtrip() {
+    let original = invoice_with_attachment();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    assert_eq!(parsed.attachments.len(), 2);
+
+    let att1 = &parsed.attachments[0];
+    assert_eq!(att1.id, Some("ATT-001".to_string()));
+    assert_eq!(att1.description, Some("Timesheet".to_string()));
+    let emb = att1.embedded_document.as_ref().unwrap();
+    assert_eq!(emb.content, "dGVzdA==");
+    assert_eq!(emb.mime_type, "application/pdf");
+    assert_eq!(emb.filename, "timesheet.pdf");
+}
+
+#[test]
+fn attachment_limit_enforced() {
+    let mut builder = InvoiceBuilder::new("RE-LIMIT", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .seller(
+            PartyBuilder::new(
+                "S GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "B AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Test", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        );
+
+    for i in 0..101 {
+        builder = builder.add_attachment(DocumentAttachment {
+            id: Some(format!("ATT-{i}")),
+            description: None,
+            external_uri: Some("https://example.com".into()),
+            embedded_document: None,
+        });
+    }
+
+    let result = builder.build();
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("100 attachments"));
+}
+
 // ---------------------------------------------------------------------------
 // Snapshot tests (insta)
 // ---------------------------------------------------------------------------

@@ -63,6 +63,10 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
     }
     // BT-5: Currency code
     w.text_element("cbc:DocumentCurrencyCode", currency)?;
+    // BT-6: Tax currency code
+    if let Some(tcc) = &invoice.tax_currency_code {
+        w.text_element("cbc:TaxCurrencyCode", tcc)?;
+    }
     // BT-10: Buyer reference (Leitweg-ID)
     if let Some(br) = &invoice.buyer_reference {
         w.text_element("cbc:BuyerReference", br)?;
@@ -73,6 +77,41 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
         w.start_element("cac:OrderReference")?;
         w.text_element("cbc:ID", or)?;
         w.end_element("cac:OrderReference")?;
+    }
+
+    // BG-3: Billing reference (preceding invoices)
+    for pi in &invoice.preceding_invoices {
+        w.start_element("cac:BillingReference")?;
+        w.start_element("cac:InvoiceDocumentReference")?;
+        w.text_element("cbc:ID", &pi.number)?;
+        if let Some(d) = &pi.issue_date {
+            w.text_element("cbc:IssueDate", &d.to_string())?;
+        }
+        w.end_element("cac:InvoiceDocumentReference")?;
+        w.end_element("cac:BillingReference")?;
+    }
+
+    // BG-24: Document attachments
+    for att in &invoice.attachments {
+        w.start_element("cac:AdditionalDocumentReference")?;
+        w.text_element("cbc:ID", att.id.as_deref().unwrap_or("n/a"))?;
+        if let Some(desc) = &att.description {
+            w.text_element("cbc:DocumentDescription", desc)?;
+        }
+        if let Some(emb) = &att.embedded_document {
+            w.start_element("cac:Attachment")?;
+            w.text_element_with_attrs(
+                "cbc:EmbeddedDocumentBinaryObject",
+                &emb.content,
+                &[("mimeCode", &emb.mime_type), ("filename", &emb.filename)],
+            )?;
+            w.end_element("cac:Attachment")?;
+        } else if let Some(uri) = &att.external_uri {
+            w.start_element("cac:Attachment")?;
+            w.text_element("cbc:URI", uri)?;
+            w.end_element("cac:Attachment")?;
+        }
+        w.end_element("cac:AdditionalDocumentReference")?;
     }
 
     // BG-14: Invoicing period
@@ -143,6 +182,7 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
     // BG-23: Tax total
     w.start_element("cac:TaxTotal")?;
     w.amount_element("cbc:TaxAmount", totals.vat_total, currency)?;
+
     for breakdown in &totals.vat_breakdown {
         w.start_element("cac:TaxSubtotal")?;
         w.amount_element("cbc:TaxableAmount", breakdown.taxable_amount, currency)?;
@@ -166,6 +206,15 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
         w.end_element("cac:TaxSubtotal")?;
     }
     w.end_element("cac:TaxTotal")?;
+
+    // BT-111: Tax total in tax currency
+    if let (Some(tcc), Some(tax_total)) =
+        (&invoice.tax_currency_code, totals.vat_total_in_tax_currency)
+    {
+        w.start_element("cac:TaxTotal")?;
+        w.amount_element("cbc:TaxAmount", tax_total, tcc)?;
+        w.end_element("cac:TaxTotal")?;
+    }
 
     // BG-22: Legal monetary total
     w.start_element("cac:LegalMonetaryTotal")?;
@@ -325,6 +374,14 @@ fn write_ubl_line(w: &mut XmlWriter, line: &LineItem, currency: &str) -> Result<
         w.amount_element("cbc:LineExtensionAmount", amt, currency)?;
     }
 
+    // BG-26: Line-level invoicing period
+    if let Some(period) = &line.invoicing_period {
+        w.start_element("cac:InvoicePeriod")?;
+        w.text_element("cbc:StartDate", &period.start.to_string())?;
+        w.text_element("cbc:EndDate", &period.end.to_string())?;
+        w.end_element("cac:InvoicePeriod")?;
+    }
+
     // BG-27: Line allowances
     for ac in &line.allowances {
         write_ubl_allowance_charge(w, ac, currency)?;
@@ -361,6 +418,13 @@ fn write_ubl_line(w: &mut XmlWriter, line: &LineItem, currency: &str) -> Result<
     w.text_element("cbc:ID", "VAT")?;
     w.end_element("cac:TaxScheme")?;
     w.end_element("cac:ClassifiedTaxCategory")?;
+    // BT-160/BT-161: Item attributes
+    for attr in &line.attributes {
+        w.start_element("cac:AdditionalItemProperty")?;
+        w.text_element("cbc:Name", &attr.name)?;
+        w.text_element("cbc:Value", &attr.value)?;
+        w.end_element("cac:AdditionalItemProperty")?;
+    }
     w.end_element("cac:Item")?;
 
     // Price
@@ -398,15 +462,33 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
                 if name == "cbc:EndpointID"
                     || name == "cbc:InvoicedQuantity"
                     || name == "cbc:CreditedQuantity"
+                    || name == "cbc:TaxAmount"
+                    || name == "cbc:EmbeddedDocumentBinaryObject"
                 {
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
                         let val = std::str::from_utf8(&attr.value).unwrap_or("");
-                        if key == "schemeID" {
-                            invoice.current_scheme_id = Some(val.to_string());
-                        }
-                        if key == "unitCode" {
-                            invoice.current_unit_code = Some(val.to_string());
+                        match key {
+                            "schemeID" => {
+                                invoice.current_scheme_id = Some(val.to_string());
+                            }
+                            "unitCode" => {
+                                invoice.current_unit_code = Some(val.to_string());
+                            }
+                            "currencyID" => {
+                                invoice.current_currency_id = Some(val.to_string());
+                            }
+                            "mimeCode" => {
+                                if let Some(att) = invoice.current_attachment.as_mut() {
+                                    att.mime_type = Some(val.to_string());
+                                }
+                            }
+                            "filename" => {
+                                if let Some(att) = invoice.current_attachment.as_mut() {
+                                    att.filename = Some(val.to_string());
+                                }
+                            }
+                            _ => {}
                         }
                     }
                 }
@@ -433,6 +515,33 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
                         invoice.vat_breakdown.push(bd);
                     }
                 }
+                // When we close a BillingReference, push the current preceding invoice
+                if ended == "cac:BillingReference" {
+                    if let Some(pi) = invoice.current_preceding.take() {
+                        invoice.preceding_invoices.push(pi);
+                    }
+                }
+                // When we close an AdditionalDocumentReference, push the current attachment
+                if ended == "cac:AdditionalDocumentReference" {
+                    if let Some(att) = invoice.current_attachment.take() {
+                        invoice.attachments.push(att);
+                    }
+                }
+                // When we close an AdditionalItemProperty, push the attribute
+                if ended == "cac:AdditionalItemProperty" {
+                    if let Some(line) = invoice.current_line.as_mut() {
+                        if let Some(name) = line.current_attr_name.take() {
+                            // value was already set in handle_ubl_text
+                            // find the last attribute with this name or push a placeholder
+                            if let Some(last) = line.attributes.last_mut() {
+                                if last.0 == name && last.1.is_empty() {
+                                    // placeholder already there
+                                }
+                            }
+                            // handled inline during text parsing
+                        }
+                    }
+                }
             }
             Ok(Event::Eof) => break,
             Err(e) => {
@@ -456,10 +565,17 @@ struct ParsedInvoice {
     due_date: Option<String>,
     type_code: Option<String>,
     currency_code: Option<String>,
+    tax_currency_code: Option<String>,
     buyer_reference: Option<String>,
     order_reference: Option<String>,
     notes: Vec<String>,
     tax_point_date: Option<String>,
+    preceding_invoices: Vec<ParsedPrecedingInvoice>,
+    current_preceding: Option<ParsedPrecedingInvoice>,
+    attachments: Vec<ParsedAttachment>,
+    current_attachment: Option<ParsedAttachment>,
+    invoicing_period_start: Option<String>,
+    invoicing_period_end: Option<String>,
 
     // Seller
     seller_name: Option<String>,
@@ -517,9 +633,12 @@ struct ParsedInvoice {
     lines: Vec<ParsedLine>,
     current_line: Option<ParsedLine>,
 
+    tax_total_in_tax_currency: Option<String>,
+
     // Temp parsing state
     current_scheme_id: Option<String>,
     current_unit_code: Option<String>,
+    current_currency_id: Option<String>,
     in_seller_tax_scheme: bool,
 }
 
@@ -546,6 +665,26 @@ struct ParsedLine {
     unit_price: Option<String>,
     tax_category: Option<String>,
     tax_rate: Option<String>,
+    attributes: Vec<(String, String)>,
+    current_attr_name: Option<String>,
+    invoicing_period_start: Option<String>,
+    invoicing_period_end: Option<String>,
+}
+
+#[derive(Default, Clone)]
+struct ParsedPrecedingInvoice {
+    number: Option<String>,
+    issue_date: Option<String>,
+}
+
+#[derive(Default, Clone)]
+struct ParsedAttachment {
+    id: Option<String>,
+    description: Option<String>,
+    content: Option<String>,
+    mime_type: Option<String>,
+    filename: Option<String>,
+    external_uri: Option<String>,
 }
 
 /// Check if a parent element name is a UBL root (with or without `ubl:` prefix).
@@ -584,18 +723,29 @@ impl ParsedInvoice {
         let in_tax_subtotal = path.iter().any(|p| p == "cac:TaxSubtotal");
         let in_tax_total = path.iter().any(|p| p == "cac:TaxTotal") && !in_line;
 
+        let in_billing_ref = path.iter().any(|p| p == "cac:BillingReference");
+        let in_additional_doc_ref =
+            path.iter().any(|p| p == "cac:AdditionalDocumentReference") && !in_line;
+
         // Invoice-level fields
-        if !in_seller && !in_buyer && !in_line && !in_tax_total {
+        if !in_seller
+            && !in_buyer
+            && !in_line
+            && !in_tax_total
+            && !in_billing_ref
+            && !in_additional_doc_ref
+        {
             match leaf {
                 "cbc:ID" if is_ubl_root(parent) => {
                     self.number = Some(text.to_string());
                 }
-                "cbc:IssueDate" => self.issue_date = Some(text.to_string()),
+                "cbc:IssueDate" if is_ubl_root(parent) => self.issue_date = Some(text.to_string()),
                 "cbc:DueDate" => self.due_date = Some(text.to_string()),
                 "cbc:InvoiceTypeCode" | "cbc:CreditNoteTypeCode" => {
                     self.type_code = Some(text.to_string())
                 }
                 "cbc:DocumentCurrencyCode" => self.currency_code = Some(text.to_string()),
+                "cbc:TaxCurrencyCode" => self.tax_currency_code = Some(text.to_string()),
                 "cbc:BuyerReference" => self.buyer_reference = Some(text.to_string()),
                 "cbc:Note" if is_ubl_root(parent) => {
                     self.notes.push(text.to_string());
@@ -603,6 +753,46 @@ impl ParsedInvoice {
                 "cbc:TaxPointDate" => self.tax_point_date = Some(text.to_string()),
                 "cbc:ID" if parent == "cac:OrderReference" => {
                     self.order_reference = Some(text.to_string());
+                }
+                "cbc:StartDate" if parent == "cac:InvoicePeriod" => {
+                    self.invoicing_period_start = Some(text.to_string());
+                }
+                "cbc:EndDate" if parent == "cac:InvoicePeriod" => {
+                    self.invoicing_period_end = Some(text.to_string());
+                }
+                _ => {}
+            }
+        }
+
+        // BG-3: Preceding invoice references
+        if in_billing_ref {
+            let pi = self.current_preceding.get_or_insert_with(Default::default);
+            match leaf {
+                "cbc:ID" if parent == "cac:InvoiceDocumentReference" => {
+                    pi.number = Some(text.to_string());
+                }
+                "cbc:IssueDate" if parent == "cac:InvoiceDocumentReference" => {
+                    pi.issue_date = Some(text.to_string());
+                }
+                _ => {}
+            }
+        }
+
+        // BG-24: Document attachments
+        if in_additional_doc_ref && !in_line {
+            let att = self.current_attachment.get_or_insert_with(Default::default);
+            match leaf {
+                "cbc:ID" if parent == "cac:AdditionalDocumentReference" => {
+                    att.id = Some(text.to_string());
+                }
+                "cbc:DocumentDescription" => {
+                    att.description = Some(text.to_string());
+                }
+                "cbc:EmbeddedDocumentBinaryObject" => {
+                    att.content = Some(text.to_string());
+                }
+                "cbc:URI" if parent == "cac:Attachment" => {
+                    att.external_uri = Some(text.to_string());
                 }
                 _ => {}
             }
@@ -642,7 +832,17 @@ impl ParsedInvoice {
         // Tax total (not in line)
         if in_tax_total && !in_line {
             if leaf == "cbc:TaxAmount" && parent == "cac:TaxTotal" {
-                self.tax_amount = Some(text.to_string());
+                // Check if this is the tax currency TaxTotal
+                let is_tax_currency = self.current_currency_id.as_ref()
+                    != Some(&self.currency_code.clone().unwrap_or_default())
+                    && self.tax_currency_code.is_some()
+                    && self.current_currency_id.as_ref() == self.tax_currency_code.as_ref();
+                if is_tax_currency {
+                    self.tax_total_in_tax_currency = Some(text.to_string());
+                } else {
+                    self.tax_amount = Some(text.to_string());
+                }
+                self.current_currency_id = None;
             }
             if in_tax_subtotal {
                 let bd = self.current_breakdown.get_or_insert_with(Default::default);
@@ -785,6 +985,21 @@ impl ParsedInvoice {
                 "cbc:Percent" if parent == "cac:ClassifiedTaxCategory" => {
                     line.tax_rate = Some(text.to_string());
                 }
+                // BT-160/BT-161: Item attributes
+                "cbc:Name" if parent == "cac:AdditionalItemProperty" => {
+                    line.current_attr_name = Some(text.to_string());
+                }
+                "cbc:Value" if parent == "cac:AdditionalItemProperty" => {
+                    let name = line.current_attr_name.take().unwrap_or_default();
+                    line.attributes.push((name, text.to_string()));
+                }
+                // BG-26: Line invoicing period
+                "cbc:StartDate" if parent == "cac:InvoicePeriod" => {
+                    line.invoicing_period_start = Some(text.to_string());
+                }
+                "cbc:EndDate" if parent == "cac:InvoicePeriod" => {
+                    line.invoicing_period_end = Some(text.to_string());
+                }
                 _ => {}
             }
         }
@@ -894,6 +1109,23 @@ impl ParsedInvoice {
                 None
             };
 
+            let attributes = pl
+                .attributes
+                .into_iter()
+                .map(|(n, v)| ItemAttribute { name: n, value: v })
+                .collect();
+            let line_period = match (pl.invoicing_period_start, pl.invoicing_period_end) {
+                (Some(s), Some(e)) => {
+                    let start = parse_date(&s).ok();
+                    let end = parse_date(&e).ok();
+                    match (start, end) {
+                        (Some(s), Some(e)) => Some(Period { start: s, end: e }),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+
             lines.push(LineItem {
                 id: pl.id.unwrap_or_default(),
                 quantity: qty,
@@ -909,6 +1141,8 @@ impl ParsedInvoice {
                 seller_item_id: pl.seller_item_id,
                 standard_item_id: pl.standard_item_id,
                 line_amount,
+                attributes,
+                invoicing_period: line_period,
             });
         }
 
@@ -951,17 +1185,61 @@ impl ParsedInvoice {
             None
         };
 
+        let vat_total_in_tax_currency = self
+            .tax_total_in_tax_currency
+            .as_deref()
+            .and_then(|s| parse_decimal(s).ok());
+
         let totals = Some(Totals {
             line_net_total: parse_decimal(self.line_extension_amount.as_deref().unwrap_or("0"))?,
             allowances_total: parse_decimal(self.allowance_total_amount.as_deref().unwrap_or("0"))?,
             charges_total: parse_decimal(self.charge_total_amount.as_deref().unwrap_or("0"))?,
             net_total: parse_decimal(self.tax_exclusive_amount.as_deref().unwrap_or("0"))?,
             vat_total: parse_decimal(self.tax_amount.as_deref().unwrap_or("0"))?,
+            vat_total_in_tax_currency,
             gross_total: parse_decimal(self.tax_inclusive_amount.as_deref().unwrap_or("0"))?,
             prepaid: parse_decimal(self.prepaid_amount.as_deref().unwrap_or("0"))?,
             amount_due: parse_decimal(self.payable_amount.as_deref().unwrap_or("0"))?,
             vat_breakdown,
         });
+
+        let preceding_invoices = self
+            .preceding_invoices
+            .into_iter()
+            .filter_map(|pi| {
+                Some(PrecedingInvoiceReference {
+                    number: pi.number?,
+                    issue_date: pi.issue_date.as_deref().and_then(|d| parse_date(d).ok()),
+                })
+            })
+            .collect();
+
+        let attachments = self
+            .attachments
+            .into_iter()
+            .map(|a| DocumentAttachment {
+                id: a.id,
+                description: a.description,
+                external_uri: a.external_uri,
+                embedded_document: a.content.map(|c| EmbeddedDocument {
+                    content: c,
+                    mime_type: a.mime_type.unwrap_or_default(),
+                    filename: a.filename.unwrap_or_default(),
+                }),
+            })
+            .collect();
+
+        let invoicing_period = match (self.invoicing_period_start, self.invoicing_period_end) {
+            (Some(s), Some(e)) => {
+                let start = parse_date(&s).ok();
+                let end = parse_date(&e).ok();
+                match (start, end) {
+                    (Some(s), Some(e)) => Some(Period { start: s, end: e }),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
 
         Ok(Invoice {
             number: self.number.unwrap_or_default(),
@@ -970,6 +1248,7 @@ impl ParsedInvoice {
             type_code: InvoiceTypeCode::from_code(type_code_num)
                 .unwrap_or(InvoiceTypeCode::Invoice),
             currency_code: self.currency_code.unwrap_or_else(|| "EUR".to_string()),
+            tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
             order_reference: self.order_reference,
@@ -986,7 +1265,9 @@ impl ParsedInvoice {
                 .tax_point_date
                 .as_deref()
                 .and_then(|d| parse_date(d).ok()),
-            invoicing_period: None,
+            invoicing_period,
+            preceding_invoices,
+            attachments,
         })
     }
 }

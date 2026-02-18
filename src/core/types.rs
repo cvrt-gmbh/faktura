@@ -15,6 +15,8 @@ pub struct Invoice {
     pub type_code: InvoiceTypeCode,
     /// BT-5: Invoice currency code (ISO 4217, e.g. "EUR").
     pub currency_code: String,
+    /// BT-6: Tax currency code (ISO 4217), when VAT is reported in a different currency.
+    pub tax_currency_code: Option<String>,
     /// BT-22: Note / free text.
     pub notes: Vec<String>,
     /// BT-10: Buyer reference (Leitweg-ID for XRechnung).
@@ -43,6 +45,10 @@ pub struct Invoice {
     pub tax_point_date: Option<NaiveDate>,
     /// BG-14: Invoicing period.
     pub invoicing_period: Option<Period>,
+    /// BG-3: Preceding invoice references (for credit notes / corrections).
+    pub preceding_invoices: Vec<PrecedingInvoiceReference>,
+    /// BG-24: Document attachments.
+    pub attachments: Vec<DocumentAttachment>,
 }
 
 /// BG-4 / BG-7: Party (seller or buyer).
@@ -135,6 +141,10 @@ pub struct LineItem {
     /// Calculated line extension amount (quantity * unit_price ± allowances/charges).
     /// Set by `calculate_totals()`.
     pub line_amount: Option<Decimal>,
+    /// BT-160/BT-161: Item attributes (name/value pairs).
+    pub attributes: Vec<ItemAttribute>,
+    /// BG-26: Line-level invoicing period.
+    pub invoicing_period: Option<Period>,
 }
 
 /// UNTDID 5305 — Tax category codes.
@@ -279,6 +289,8 @@ pub struct Totals {
     pub net_total: Decimal,
     /// BT-110: Total VAT amount.
     pub vat_total: Decimal,
+    /// BT-111: VAT total in tax currency (when BT-6 differs from BT-5).
+    pub vat_total_in_tax_currency: Option<Decimal>,
     /// BT-112: Invoice total with VAT = net_total + vat_total.
     pub gross_total: Decimal,
     /// BT-113: Paid amount (prepayments).
@@ -391,4 +403,46 @@ pub struct Period {
     pub start: NaiveDate,
     /// BT-74: End date.
     pub end: NaiveDate,
+}
+
+/// BT-160/BT-161: Item attribute (name/value pair).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ItemAttribute {
+    /// BT-160: Attribute name.
+    pub name: String,
+    /// BT-161: Attribute value.
+    pub value: String,
+}
+
+/// BG-3: Preceding invoice reference (for credit notes / corrected invoices).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrecedingInvoiceReference {
+    /// BT-25: Preceding invoice number.
+    pub number: String,
+    /// BT-26: Preceding invoice issue date.
+    pub issue_date: Option<NaiveDate>,
+}
+
+/// BG-24: Document attachment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentAttachment {
+    /// BT-122: Supporting document reference identifier.
+    pub id: Option<String>,
+    /// BT-123: Supporting document description.
+    pub description: Option<String>,
+    /// BT-124: External document location (URI).
+    pub external_uri: Option<String>,
+    /// BT-125: Embedded document binary object.
+    pub embedded_document: Option<EmbeddedDocument>,
+}
+
+/// BT-125: Embedded binary document within an attachment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmbeddedDocument {
+    /// Base64-encoded content.
+    pub content: String,
+    /// BT-125-1: MIME type (e.g. "application/pdf").
+    pub mime_type: String,
+    /// BT-125-2: Filename.
+    pub filename: String,
 }

@@ -69,6 +69,34 @@ pub fn to_cii_xml(invoice: &Invoice) -> XmlResult {
         w.text_element("ram:IssuerAssignedID", or)?;
         w.end_element("ram:BuyerOrderReferencedDocument")?;
     }
+    // BG-3: Preceding invoice references
+    for pi in &invoice.preceding_invoices {
+        w.start_element("ram:InvoiceReferencedDocument")?;
+        w.text_element("ram:IssuerAssignedID", &pi.number)?;
+        if let Some(d) = &pi.issue_date {
+            write_cii_date(&mut w, "ram:FormattedIssueDateTime", d)?;
+        }
+        w.end_element("ram:InvoiceReferencedDocument")?;
+    }
+    // BG-24: Document attachments
+    for att in &invoice.attachments {
+        w.start_element("ram:AdditionalReferencedDocument")?;
+        w.text_element("ram:IssuerAssignedID", att.id.as_deref().unwrap_or("n/a"))?;
+        w.text_element("ram:TypeCode", "916")?;
+        if let Some(desc) = &att.description {
+            w.text_element("ram:Name", desc)?;
+        }
+        if let Some(emb) = &att.embedded_document {
+            w.text_element_with_attrs(
+                "ram:AttachmentBinaryObject",
+                &emb.content,
+                &[("mimeCode", &emb.mime_type), ("filename", &emb.filename)],
+            )?;
+        } else if let Some(uri) = &att.external_uri {
+            w.text_element("ram:URIID", uri)?;
+        }
+        w.end_element("ram:AdditionalReferencedDocument")?;
+    }
     w.end_element("ram:ApplicableHeaderTradeAgreement")?;
 
     // --- ApplicableHeaderTradeDelivery ---
@@ -88,6 +116,9 @@ pub fn to_cii_xml(invoice: &Invoice) -> XmlResult {
 
     // --- ApplicableHeaderTradeSettlement ---
     w.start_element("ram:ApplicableHeaderTradeSettlement")?;
+    if let Some(tcc) = &invoice.tax_currency_code {
+        w.text_element("ram:TaxCurrencyCode", tcc)?;
+    }
     w.text_element("ram:InvoiceCurrencyCode", currency)?;
 
     // Payment means
@@ -166,6 +197,16 @@ pub fn to_cii_xml(invoice: &Invoice) -> XmlResult {
         &format_decimal(totals.vat_total),
         &[("currencyID", currency.as_str())],
     )?;
+    // BT-111: Tax total in tax currency
+    if let (Some(tcc), Some(tax_total)) =
+        (&invoice.tax_currency_code, totals.vat_total_in_tax_currency)
+    {
+        w.text_element_with_attrs(
+            "ram:TaxTotalAmount",
+            &format_decimal(tax_total),
+            &[("currencyID", tcc.as_str())],
+        )?;
+    }
     w.text_element("ram:GrandTotalAmount", &format_decimal(totals.gross_total))?;
     if totals.prepaid > Decimal::ZERO {
         w.text_element("ram:TotalPrepaidAmount", &format_decimal(totals.prepaid))?;
@@ -296,6 +337,13 @@ fn write_cii_line(
     if let Some(desc) = &line.description {
         w.text_element("ram:Description", desc)?;
     }
+    // BT-160/BT-161: Item attributes
+    for attr in &line.attributes {
+        w.start_element("ram:ApplicableProductCharacteristic")?;
+        w.text_element("ram:Description", &attr.name)?;
+        w.text_element("ram:Value", &attr.value)?;
+        w.end_element("ram:ApplicableProductCharacteristic")?;
+    }
     w.end_element("ram:SpecifiedTradeProduct")?;
 
     // Trade agreement (price)
@@ -321,6 +369,13 @@ fn write_cii_line(
 
     // Settlement (tax + line total)
     w.start_element("ram:SpecifiedLineTradeSettlement")?;
+    // BG-26: Line invoicing period
+    if let Some(period) = &line.invoicing_period {
+        w.start_element("ram:BillingSpecifiedPeriod")?;
+        write_cii_date(w, "ram:StartDateTime", &period.start)?;
+        write_cii_date(w, "ram:EndDateTime", &period.end)?;
+        w.end_element("ram:BillingSpecifiedPeriod")?;
+    }
     w.start_element("ram:ApplicableTradeTax")?;
     w.text_element("ram:TypeCode", "VAT")?;
     w.text_element("ram:CategoryCode", line.tax_category.code())?;
@@ -387,6 +442,7 @@ pub fn from_cii_xml(xml: &str) -> Result<Invoice, RechnungError> {
                     || name == "ram:BilledQuantity"
                     || name == "udt:DateTimeString"
                     || name == "ram:TaxTotalAmount"
+                    || name == "ram:AttachmentBinaryObject"
                 {
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
@@ -395,6 +451,16 @@ pub fn from_cii_xml(xml: &str) -> Result<Invoice, RechnungError> {
                             "schemeID" => p.current_scheme_id = Some(val.to_string()),
                             "unitCode" => p.current_unit_code = Some(val.to_string()),
                             "currencyID" => p.current_currency_id = Some(val.to_string()),
+                            "mimeCode" => {
+                                if let Some(att) = p.current_attachment.as_mut() {
+                                    att.mime_type = Some(val.to_string());
+                                }
+                            }
+                            "filename" => {
+                                if let Some(att) = p.current_attachment.as_mut() {
+                                    att.filename = Some(val.to_string());
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -427,6 +493,17 @@ pub fn from_cii_xml(xml: &str) -> Result<Invoice, RechnungError> {
                         p.vat_breakdown.push(bd);
                     }
                 }
+                if ended == "ram:InvoiceReferencedDocument" {
+                    if let Some(pi) = p.current_preceding.take() {
+                        p.preceding_invoices.push(pi);
+                    }
+                }
+                if ended == "ram:AdditionalReferencedDocument" {
+                    if let Some(att) = p.current_attachment.take() {
+                        p.attachments.push(att);
+                    }
+                }
+                // ram:ApplicableProductCharacteristic — attributes handled during text parsing
             }
             Ok(Event::Eof) => break,
             Err(e) => {
@@ -445,9 +522,16 @@ struct CiiParsed {
     type_code: Option<String>,
     issue_date: Option<String>,
     currency_code: Option<String>,
+    tax_currency_code: Option<String>,
     buyer_reference: Option<String>,
     order_reference: Option<String>,
     notes: Vec<String>,
+    preceding_invoices: Vec<CiiPrecedingInvoice>,
+    current_preceding: Option<CiiPrecedingInvoice>,
+    attachments: Vec<CiiAttachment>,
+    current_attachment: Option<CiiAttachment>,
+    invoicing_period_start: Option<String>,
+    invoicing_period_end: Option<String>,
 
     seller_name: Option<String>,
     seller_vat_id: Option<String>,
@@ -481,6 +565,8 @@ struct CiiParsed {
     payment_account_name: Option<String>,
     payment_terms: Option<String>,
     due_date: Option<String>,
+
+    tax_total_in_tax_currency: Option<String>,
 
     line_total_amount: Option<String>,
     tax_basis_total: Option<String>,
@@ -526,6 +612,26 @@ struct CiiLine {
     line_total: Option<String>,
     tax_category: Option<String>,
     tax_rate: Option<String>,
+    attributes: Vec<(String, String)>,
+    current_attr_name: Option<String>,
+    invoicing_period_start: Option<String>,
+    invoicing_period_end: Option<String>,
+}
+
+#[derive(Default, Clone)]
+struct CiiPrecedingInvoice {
+    number: Option<String>,
+    issue_date: Option<String>,
+}
+
+#[derive(Default, Clone)]
+struct CiiAttachment {
+    id: Option<String>,
+    description: Option<String>,
+    content: Option<String>,
+    mime_type: Option<String>,
+    filename: Option<String>,
+    external_uri: Option<String>,
 }
 
 impl CiiParsed {
@@ -572,10 +678,57 @@ impl CiiParsed {
         if leaf == "ram:InvoiceCurrencyCode" {
             self.currency_code = Some(text.to_string());
         }
+        if leaf == "ram:TaxCurrencyCode" {
+            self.tax_currency_code = Some(text.to_string());
+        }
 
         // Delivery date
         if leaf == "udt:DateTimeString" && parent == "ram:OccurrenceDateTime" {
             self.tax_point_date = Some(text.to_string());
+        }
+
+        // BG-14: Document-level invoicing period (in delivery)
+        let in_header_delivery = path
+            .iter()
+            .any(|p| p == "ram:ApplicableHeaderTradeDelivery");
+        let in_billing_period = path.iter().any(|p| p == "ram:BillingSpecifiedPeriod");
+        if in_header_delivery && in_billing_period && !in_line {
+            if leaf == "udt:DateTimeString" && parent == "ram:StartDateTime" {
+                self.invoicing_period_start = Some(text.to_string());
+            }
+            if leaf == "udt:DateTimeString" && parent == "ram:EndDateTime" {
+                self.invoicing_period_end = Some(text.to_string());
+            }
+        }
+
+        // BG-3: Preceding invoice references
+        let in_invoice_ref = path.iter().any(|p| p == "ram:InvoiceReferencedDocument");
+        if in_invoice_ref {
+            let pi = self.current_preceding.get_or_insert_with(Default::default);
+            if leaf == "ram:IssuerAssignedID" {
+                pi.number = Some(text.to_string());
+            }
+            if leaf == "udt:DateTimeString" && parent == "ram:FormattedIssueDateTime" {
+                pi.issue_date = Some(text.to_string());
+            }
+        }
+
+        // BG-24: Document attachments
+        let in_additional_ref = path.iter().any(|p| p == "ram:AdditionalReferencedDocument");
+        if in_additional_ref && !in_line {
+            let att = self.current_attachment.get_or_insert_with(Default::default);
+            if leaf == "ram:IssuerAssignedID" && parent == "ram:AdditionalReferencedDocument" {
+                att.id = Some(text.to_string());
+            }
+            if leaf == "ram:Name" && parent == "ram:AdditionalReferencedDocument" {
+                att.description = Some(text.to_string());
+            }
+            if leaf == "ram:AttachmentBinaryObject" {
+                att.content = Some(text.to_string());
+            }
+            if leaf == "ram:URIID" && parent == "ram:AdditionalReferencedDocument" {
+                att.external_uri = Some(text.to_string());
+            }
         }
 
         // Seller
@@ -677,7 +830,18 @@ impl CiiParsed {
             match leaf {
                 "ram:LineTotalAmount" => self.line_total_amount = Some(text.to_string()),
                 "ram:TaxBasisTotalAmount" => self.tax_basis_total = Some(text.to_string()),
-                "ram:TaxTotalAmount" => self.tax_total = Some(text.to_string()),
+                "ram:TaxTotalAmount" => {
+                    // Distinguish document currency vs tax currency
+                    let cur_id = self.current_currency_id.take();
+                    let is_tax_currency = cur_id.as_ref() != self.currency_code.as_ref()
+                        && self.tax_currency_code.is_some()
+                        && cur_id.as_ref() == self.tax_currency_code.as_ref();
+                    if is_tax_currency {
+                        self.tax_total_in_tax_currency = Some(text.to_string());
+                    } else {
+                        self.tax_total = Some(text.to_string());
+                    }
+                }
                 "ram:GrandTotalAmount" => self.grand_total = Some(text.to_string()),
                 "ram:DuePayableAmount" => self.due_payable = Some(text.to_string()),
                 "ram:TotalPrepaidAmount" => self.prepaid_total = Some(text.to_string()),
@@ -690,32 +854,57 @@ impl CiiParsed {
         // Line items
         if in_line {
             let line = self.current_line.get_or_insert_with(Default::default);
-            match leaf {
-                "ram:LineID" => line.id = Some(text.to_string()),
-                "ram:Name" if parent == "ram:SpecifiedTradeProduct" => {
-                    line.name = Some(text.to_string())
+
+            let in_product_char = path
+                .iter()
+                .any(|p| p == "ram:ApplicableProductCharacteristic");
+            let in_line_billing_period = path.iter().any(|p| p == "ram:BillingSpecifiedPeriod");
+
+            if in_product_char {
+                // BT-160/BT-161: Item attributes
+                if leaf == "ram:Description" && parent == "ram:ApplicableProductCharacteristic" {
+                    line.current_attr_name = Some(text.to_string());
                 }
-                "ram:Description" if parent == "ram:SpecifiedTradeProduct" => {
-                    line.description = Some(text.to_string())
+                if leaf == "ram:Value" && parent == "ram:ApplicableProductCharacteristic" {
+                    let name = line.current_attr_name.take().unwrap_or_default();
+                    line.attributes.push((name, text.to_string()));
                 }
-                "ram:SellerAssignedID" => line.seller_item_id = Some(text.to_string()),
-                "ram:BilledQuantity" => {
-                    line.quantity = Some(text.to_string());
-                    line.unit = self.current_unit_code.take();
+            } else if in_line_billing_period {
+                // BG-26: Line invoicing period
+                if leaf == "udt:DateTimeString" && parent == "ram:StartDateTime" {
+                    line.invoicing_period_start = Some(text.to_string());
                 }
-                "ram:ChargeAmount" if parent == "ram:NetPriceProductTradePrice" => {
-                    line.price = Some(text.to_string());
+                if leaf == "udt:DateTimeString" && parent == "ram:EndDateTime" {
+                    line.invoicing_period_end = Some(text.to_string());
                 }
-                "ram:LineTotalAmount" => line.line_total = Some(text.to_string()),
-                "ram:CategoryCode" if path.iter().any(|p| p == "ram:ApplicableTradeTax") => {
-                    line.tax_category = Some(text.to_string());
+            } else {
+                match leaf {
+                    "ram:LineID" => line.id = Some(text.to_string()),
+                    "ram:Name" if parent == "ram:SpecifiedTradeProduct" => {
+                        line.name = Some(text.to_string())
+                    }
+                    "ram:Description" if parent == "ram:SpecifiedTradeProduct" => {
+                        line.description = Some(text.to_string())
+                    }
+                    "ram:SellerAssignedID" => line.seller_item_id = Some(text.to_string()),
+                    "ram:BilledQuantity" => {
+                        line.quantity = Some(text.to_string());
+                        line.unit = self.current_unit_code.take();
+                    }
+                    "ram:ChargeAmount" if parent == "ram:NetPriceProductTradePrice" => {
+                        line.price = Some(text.to_string());
+                    }
+                    "ram:LineTotalAmount" => line.line_total = Some(text.to_string()),
+                    "ram:CategoryCode" if path.iter().any(|p| p == "ram:ApplicableTradeTax") => {
+                        line.tax_category = Some(text.to_string());
+                    }
+                    "ram:RateApplicablePercent"
+                        if path.iter().any(|p| p == "ram:ApplicableTradeTax") =>
+                    {
+                        line.tax_rate = Some(text.to_string());
+                    }
+                    _ => {}
                 }
-                "ram:RateApplicablePercent"
-                    if path.iter().any(|p| p == "ram:ApplicableTradeTax") =>
-                {
-                    line.tax_rate = Some(text.to_string());
-                }
-                _ => {}
             }
         }
     }
@@ -813,6 +1002,23 @@ impl CiiParsed {
 
         let mut lines = Vec::new();
         for pl in self.lines {
+            let attributes = pl
+                .attributes
+                .into_iter()
+                .map(|(n, v)| ItemAttribute { name: n, value: v })
+                .collect();
+            let line_period = match (pl.invoicing_period_start, pl.invoicing_period_end) {
+                (Some(s), Some(e)) => {
+                    let start = parse_cii_date(&s).ok();
+                    let end = parse_cii_date(&e).ok();
+                    match (start, end) {
+                        (Some(s), Some(e)) => Some(Period { start: s, end: e }),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+
             lines.push(LineItem {
                 id: pl.id.unwrap_or_default(),
                 quantity: parse_decimal(pl.quantity.as_deref().unwrap_or("1"))?,
@@ -829,6 +1035,8 @@ impl CiiParsed {
                 seller_item_id: pl.seller_item_id,
                 standard_item_id: None,
                 line_amount: pl.line_total.as_deref().and_then(|s| parse_decimal(s).ok()),
+                attributes,
+                invoicing_period: line_period,
             });
         }
 
@@ -870,6 +1078,52 @@ impl CiiParsed {
             None
         };
 
+        let preceding_invoices = self
+            .preceding_invoices
+            .into_iter()
+            .filter_map(|pi| {
+                Some(PrecedingInvoiceReference {
+                    number: pi.number?,
+                    issue_date: pi
+                        .issue_date
+                        .as_deref()
+                        .and_then(|d| parse_cii_date(d).ok()),
+                })
+            })
+            .collect();
+
+        let attachments = self
+            .attachments
+            .into_iter()
+            .map(|a| DocumentAttachment {
+                id: a.id,
+                description: a.description,
+                external_uri: a.external_uri,
+                embedded_document: a.content.map(|c| EmbeddedDocument {
+                    content: c,
+                    mime_type: a.mime_type.unwrap_or_default(),
+                    filename: a.filename.unwrap_or_default(),
+                }),
+            })
+            .collect();
+
+        let invoicing_period = match (self.invoicing_period_start, self.invoicing_period_end) {
+            (Some(s), Some(e)) => {
+                let start = parse_cii_date(&s).ok();
+                let end = parse_cii_date(&e).ok();
+                match (start, end) {
+                    (Some(s), Some(e)) => Some(Period { start: s, end: e }),
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+
+        let vat_total_in_tax_currency = self
+            .tax_total_in_tax_currency
+            .as_deref()
+            .and_then(|s| parse_decimal(s).ok());
+
         Ok(Invoice {
             number: self.number.unwrap_or_default(),
             issue_date,
@@ -880,6 +1134,7 @@ impl CiiParsed {
             type_code: InvoiceTypeCode::from_code(type_code_num)
                 .unwrap_or(InvoiceTypeCode::Invoice),
             currency_code: self.currency_code.unwrap_or_else(|| "EUR".to_string()),
+            tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
             order_reference: self.order_reference,
@@ -895,6 +1150,7 @@ impl CiiParsed {
                 charges_total: parse_decimal(self.charge_total.as_deref().unwrap_or("0"))?,
                 net_total: parse_decimal(self.tax_basis_total.as_deref().unwrap_or("0"))?,
                 vat_total: parse_decimal(self.tax_total.as_deref().unwrap_or("0"))?,
+                vat_total_in_tax_currency,
                 gross_total: parse_decimal(self.grand_total.as_deref().unwrap_or("0"))?,
                 prepaid: parse_decimal(self.prepaid_total.as_deref().unwrap_or("0"))?,
                 amount_due: parse_decimal(self.due_payable.as_deref().unwrap_or("0"))?,
@@ -906,7 +1162,9 @@ impl CiiParsed {
                 .tax_point_date
                 .as_deref()
                 .and_then(|d| parse_cii_date(d).ok()),
-            invoicing_period: None,
+            invoicing_period,
+            preceding_invoices,
+            attachments,
         })
     }
 }
