@@ -111,9 +111,12 @@ Automatic scenario detection via `vat::determine_scenario()`:
 ```sh
 cargo run --features all --example basic_invoice
 cargo run --features all --example xrechnung
-cargo run --features all --example datev_export
-cargo run --features all --example validation
 cargo run --features all --example zugferd
+cargo run --features all --example datev_export
+cargo run --features all --example gdpdu_export
+cargo run --features all --example vat_check
+cargo run --features all --example peppol_invoice
+cargo run --features all --example validation
 ```
 
 ## Standards Compliance
