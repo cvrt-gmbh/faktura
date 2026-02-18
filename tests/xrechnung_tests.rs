@@ -811,6 +811,91 @@ fn allowance_charge_xrechnung_valid() {
 }
 
 // ---------------------------------------------------------------------------
+// Malformed XML input — from_ubl_xml
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ubl_parse_empty_string() {
+    let result = xrechnung::from_ubl_xml("");
+    assert!(result.is_err());
+}
+
+#[test]
+fn ubl_parse_not_xml() {
+    let result = xrechnung::from_ubl_xml("this is not xml at all");
+    assert!(result.is_err());
+}
+
+#[test]
+fn ubl_parse_truncated_xml() {
+    let result = xrechnung::from_ubl_xml("<?xml version=\"1.0\"?><Invoice><cbc:ID>123</cbc:ID>");
+    assert!(result.is_err());
+}
+
+#[test]
+fn ubl_parse_wrong_root_element() {
+    let result = xrechnung::from_ubl_xml("<?xml version=\"1.0\"?><Catalog></Catalog>");
+    assert!(result.is_err());
+}
+
+#[test]
+fn ubl_parse_missing_required_fields() {
+    // Valid XML structure but missing all business data
+    let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<ubl:Invoice xmlns:ubl="urn:oasis:names:specification:ubl:schema:module:invoice:2"
+             xmlns:cbc="urn:oasis:names:specification:ubl:schema:module:commonbasiccomponents-2"
+             xmlns:cac="urn:oasis:names:specification:ubl:schema:module:commonaggregatecomponents-2">
+</ubl:Invoice>"#;
+    let result = xrechnung::from_ubl_xml(xml);
+    // Should either error or produce an invoice with empty required fields
+    // The important thing is it doesn't panic
+    let _ = result;
+}
+
+// ---------------------------------------------------------------------------
+// Malformed XML input — from_cii_xml
+// ---------------------------------------------------------------------------
+
+#[test]
+fn cii_parse_empty_string() {
+    let result = xrechnung::from_cii_xml("");
+    assert!(result.is_err());
+}
+
+#[test]
+fn cii_parse_not_xml() {
+    let result = xrechnung::from_cii_xml("{\"type\": \"invoice\"}");
+    assert!(result.is_err());
+}
+
+#[test]
+fn cii_parse_truncated_xml() {
+    let result =
+        xrechnung::from_cii_xml("<?xml version=\"1.0\"?><rsm:CrossIndustryInvoice><rsm:Exch");
+    assert!(result.is_err());
+}
+
+#[test]
+fn cii_parse_ubl_xml_as_cii() {
+    // Feed UBL XML to the CII parser — should not panic
+    let inv = xrechnung_invoice();
+    let ubl_xml = xrechnung::to_ubl_xml(&inv).unwrap();
+    let result = xrechnung::from_cii_xml(&ubl_xml);
+    // May succeed with empty/wrong data or error — must not panic
+    let _ = result;
+}
+
+#[test]
+fn ubl_parse_cii_xml_as_ubl() {
+    // Feed CII XML to the UBL parser — should not panic
+    let inv = xrechnung_invoice();
+    let cii_xml = xrechnung::to_cii_xml(&inv).unwrap();
+    let result = xrechnung::from_ubl_xml(&cii_xml);
+    // May succeed with empty/wrong data or error — must not panic
+    let _ = result;
+}
+
+// ---------------------------------------------------------------------------
 // Snapshot tests (insta)
 // ---------------------------------------------------------------------------
 

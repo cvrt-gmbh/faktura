@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **tests**: Credit note (type code 381) end-to-end tests — UBL and CII generation, roundtrip, and XRechnung validation
 - **tests**: Document-level allowances/charges (BG-20/BG-21) end-to-end tests with totals verification
 - **tests**: VIES async integration tests (ignored by default, `--ignored` to run)
+- **tests**: Malformed XML input tests — empty string, non-XML, truncated XML, wrong root element, cross-format confusion (UBL↔CII)
+- **tests**: Corrupt PDF input tests — empty bytes, non-PDF bytes, truncated PDF for both extract and embed
+- **tests**: Peppol credit note generation, roundtrip, and validation
 
 ### Fixed
 

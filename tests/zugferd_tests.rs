@@ -292,6 +292,55 @@ fn embed_xrechnung_profile_xmp() {
 }
 
 // ---------------------------------------------------------------------------
+// Corrupt PDF input — extract_from_pdf
+// ---------------------------------------------------------------------------
+
+#[test]
+fn extract_from_empty_bytes() {
+    let result = zugferd::extract_from_pdf(&[]);
+    assert!(result.is_err());
+}
+
+#[test]
+fn extract_from_non_pdf_bytes() {
+    let result = zugferd::extract_from_pdf(b"this is not a PDF file");
+    assert!(result.is_err());
+}
+
+#[test]
+fn extract_from_truncated_pdf() {
+    let pdf = minimal_pdf();
+    // Only take the first 50 bytes — enough for the header but not a valid PDF
+    let result = zugferd::extract_from_pdf(&pdf[..50.min(pdf.len())]);
+    assert!(result.is_err());
+}
+
+// ---------------------------------------------------------------------------
+// Corrupt PDF input — embed_in_pdf
+// ---------------------------------------------------------------------------
+
+#[test]
+fn embed_into_empty_bytes() {
+    let result = zugferd::embed_in_pdf(&[], "<xml/>", ZugferdProfile::EN16931);
+    assert!(result.is_err());
+}
+
+#[test]
+fn embed_into_non_pdf_bytes() {
+    let result = zugferd::embed_in_pdf(b"not a pdf", "<xml/>", ZugferdProfile::EN16931);
+    assert!(result.is_err());
+}
+
+#[test]
+fn embed_empty_xml_into_pdf() {
+    let pdf = minimal_pdf();
+    // Empty XML is technically valid to embed — the function wraps it as-is
+    let result = zugferd::embed_in_pdf(&pdf, "", ZugferdProfile::EN16931);
+    // Should succeed or fail gracefully — must not panic
+    let _ = result;
+}
+
+// ---------------------------------------------------------------------------
 // Profile properties
 // ---------------------------------------------------------------------------
 

@@ -272,6 +272,84 @@ fn negative_quantity_line_fails_r121() {
 }
 
 // ---------------------------------------------------------------------------
+// Credit Note via Peppol
+// ---------------------------------------------------------------------------
+
+fn peppol_credit_note() -> Invoice {
+    InvoiceBuilder::new("CN-001", date(2024, 6, 15))
+        .type_code(InvoiceTypeCode::CreditNote)
+        .buyer_reference("BR-123")
+        .tax_point_date(date(2024, 6, 15))
+        .seller(
+            PartyBuilder::new(
+                "Seller GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@peppol.eu")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@seller.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Buyer AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@peppol.eu")
+            .build(),
+        )
+        .due_date(date(2024, 7, 15))
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: Some("CN-001".into()),
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+        })
+        .add_line(
+            LineItemBuilder::new("1", "Refund for consulting", dec!(5), "HUR", dec!(150))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .build()
+        .unwrap()
+}
+
+#[test]
+fn peppol_credit_note_ubl_generation() {
+    let xml = to_ubl_xml(&peppol_credit_note()).unwrap();
+    assert!(xml.contains("CreditNote") || xml.contains("381"));
+    assert!(xml.contains(PEPPOL_CUSTOMIZATION_ID));
+    assert!(xml.contains("CN-001"));
+}
+
+#[test]
+fn peppol_credit_note_roundtrip() {
+    let original = peppol_credit_note();
+    let xml = to_ubl_xml(&original).unwrap();
+    let parsed = from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.type_code, InvoiceTypeCode::CreditNote);
+    assert_eq!(parsed.number, "CN-001");
+    assert_eq!(parsed.lines.len(), 1);
+    assert_eq!(parsed.lines[0].item_name, "Refund for consulting");
+    assert_eq!(parsed.lines[0].quantity, dec!(5));
+}
+
+#[test]
+fn peppol_credit_note_passes_validation() {
+    let errors = validate_peppol(&peppol_credit_note());
+    assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+}
+
+// ---------------------------------------------------------------------------
 // EAS Schemes
 // ---------------------------------------------------------------------------
 
