@@ -62,6 +62,7 @@ fn domestic_invoice_full() {
             }),
         })
         .payment_terms("Zahlbar innerhalb von 30 Tagen")
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -99,6 +100,7 @@ fn mixed_vat_rates() {
                 .tax(TaxCategory::StandardRate, dec!(19))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -140,6 +142,7 @@ fn kleinunternehmer_invoice() {
                 .tax(TaxCategory::NotSubjectToVat, dec!(0))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -180,6 +183,7 @@ fn reverse_charge_invoice() {
                 .tax(TaxCategory::ReverseCharge, dec!(0))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -209,6 +213,7 @@ fn intra_community_supply() {
                 .tax(TaxCategory::IntraCommunitySupply, dec!(0))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -236,6 +241,7 @@ fn export_invoice() {
                 .tax(TaxCategory::Export, dec!(0))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -275,6 +281,7 @@ fn allowances_and_charges() {
             reason: Some("Versandkosten".into()),
             reason_code: None,
         })
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -303,6 +310,7 @@ fn prepaid_amount() {
                 .build(),
         )
         .prepaid(dec!(5000))
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -325,6 +333,7 @@ fn credit_note() {
                 .tax(TaxCategory::StandardRate, dec!(19))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 
@@ -414,6 +423,7 @@ fn invoice_serializes_to_json() {
                 .tax(TaxCategory::StandardRate, dec!(19))
                 .build(),
         )
+        .tax_point_date(date(2024, 6, 15))
         .build()
         .unwrap();
 

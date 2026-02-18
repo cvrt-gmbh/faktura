@@ -95,6 +95,7 @@ mod tests {
 
     fn domestic_invoice() -> Invoice {
         InvoiceBuilder::new("TEST-001", date(2024, 6, 15))
+            .tax_point_date(date(2024, 6, 15))
             .seller(
                 PartyBuilder::new(
                     "Seller GmbH",
@@ -167,6 +168,7 @@ mod tests {
     #[test]
     fn small_invoice_detected() {
         let inv = InvoiceBuilder::new("SMALL-001", date(2024, 6, 15))
+            .tax_point_date(date(2024, 6, 15))
             .seller(
                 PartyBuilder::new(
                     "Seller",
@@ -195,6 +197,7 @@ mod tests {
     #[test]
     fn mixed_rates_detected() {
         let inv = InvoiceBuilder::new("MIX-001", date(2024, 6, 15))
+            .tax_point_date(date(2024, 6, 15))
             .seller(
                 PartyBuilder::new(
                     "Seller",

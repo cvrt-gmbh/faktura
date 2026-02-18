@@ -178,6 +178,7 @@ mod tests {
     fn valid_peppol_invoice() -> Invoice {
         InvoiceBuilder::new("PEPPOL-001", date(2024, 6, 15))
             .buyer_reference("BR-123")
+            .tax_point_date(date(2024, 6, 15))
             .seller(
                 PartyBuilder::new(
                     "Seller GmbH",

@@ -14,6 +14,7 @@
 //! use rust_decimal_macros::dec;
 //!
 //! let invoice = InvoiceBuilder::new("RE-2024-001", NaiveDate::from_ymd_opt(2024, 6, 15).unwrap())
+//!     .tax_point_date(NaiveDate::from_ymd_opt(2024, 6, 15).unwrap())
 //!     .seller(PartyBuilder::new("ACME GmbH", AddressBuilder::new("Berlin", "10115", "DE").build())
 //!         .vat_id("DE123456789").build())
 //!     .buyer(PartyBuilder::new("Kunde AG", AddressBuilder::new("München", "80331", "DE").build()).build())

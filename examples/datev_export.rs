@@ -6,6 +6,7 @@ use rust_decimal_macros::dec;
 fn main() {
     // Build two invoices
     let inv1 = InvoiceBuilder::new("RE-2024-001", NaiveDate::from_ymd_opt(2024, 3, 15).unwrap())
+        .tax_point_date(NaiveDate::from_ymd_opt(2024, 3, 15).unwrap())
         .seller(
             PartyBuilder::new(
                 "ACME GmbH",
@@ -30,6 +31,7 @@ fn main() {
         .expect("invoice 1 valid");
 
     let inv2 = InvoiceBuilder::new("RE-2024-002", NaiveDate::from_ymd_opt(2024, 3, 20).unwrap())
+        .tax_point_date(NaiveDate::from_ymd_opt(2024, 3, 20).unwrap())
         .seller(
             PartyBuilder::new(
                 "ACME GmbH",

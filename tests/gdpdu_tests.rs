@@ -53,6 +53,7 @@ fn domestic_invoice() -> Invoice {
 fn mixed_rate_invoice() -> Invoice {
     InvoiceBuilder::new("RE-2024-002", date(2024, 4, 1))
         .due_date(date(2024, 5, 1))
+        .tax_point_date(date(2024, 4, 1))
         .vat_scenario(VatScenario::Mixed)
         .seller(
             PartyBuilder::new(

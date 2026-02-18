@@ -38,6 +38,7 @@ let invoice = InvoiceBuilder::new(
     "RE-2024-001",
     NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),
 )
+.tax_point_date(NaiveDate::from_ymd_opt(2024, 6, 15).unwrap())
 .seller(
     PartyBuilder::new(
         "ACME GmbH",

@@ -70,6 +70,19 @@ pub fn validate_14_ustg(invoice: &Invoice) -> Vec<ValidationError> {
         validate_vat_id_format(vat_id, "buyer.vat_id", &mut errors);
     }
 
+    // §14 Abs. 4 Nr. 6 UStG — Delivery date or service period
+    // Required unless SmallInvoice (§33 UStDV)
+    if invoice.vat_scenario != VatScenario::SmallInvoice
+        && invoice.tax_point_date.is_none()
+        && invoice.invoicing_period.is_none()
+    {
+        errors.push(ValidationError::with_rule(
+            "tax_point_date",
+            "invoice must have a delivery date (Leistungsdatum) or invoicing period (§14 Abs. 4 Nr. 6 UStG)",
+            "BR-CO-03",
+        ));
+    }
+
     // BR-16: An Invoice shall have at least one Invoice line
     if invoice.lines.is_empty() {
         errors.push(ValidationError::with_rule(
@@ -893,6 +906,7 @@ mod tests {
             .seller(test_seller())
             .buyer(test_buyer())
             .add_line(test_line())
+            .tax_point_date(test_date())
             .build();
 
         assert!(result.is_ok());
@@ -911,11 +925,36 @@ mod tests {
             .seller(seller)
             .buyer(test_buyer())
             .add_line(test_line())
+            .tax_point_date(test_date())
             .build();
 
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("VAT ID") || err.contains("tax number"));
+    }
+
+    #[test]
+    fn missing_delivery_date() {
+        let result = InvoiceBuilder::new("RE-001", test_date())
+            .seller(test_seller())
+            .buyer(test_buyer())
+            .add_line(test_line())
+            .build();
+
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("delivery date") || err.contains("Leistungsdatum"));
+    }
+
+    #[test]
+    fn invoicing_period_satisfies_delivery_date() {
+        let result = InvoiceBuilder::new("RE-001", test_date())
+            .seller(test_seller())
+            .buyer(test_buyer())
+            .add_line(test_line())
+            .invoicing_period(test_date(), test_date())
+            .build();
+
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -947,6 +986,7 @@ mod tests {
             .seller(test_seller())
             .buyer(test_buyer())
             .add_line(line)
+            .tax_point_date(test_date())
             .build();
 
         assert!(result.is_err());
@@ -965,6 +1005,7 @@ mod tests {
             .seller(test_seller())
             .buyer(test_buyer()) // no VAT ID
             .add_line(line)
+            .tax_point_date(test_date())
             .build();
 
         assert!(result.is_err());
@@ -983,6 +1024,7 @@ mod tests {
             .seller(test_seller())
             .buyer(test_buyer())
             .add_line(line.clone())
+            .tax_point_date(test_date())
             .build();
 
         assert!(result.is_err());
@@ -995,6 +1037,7 @@ mod tests {
             .seller(test_seller())
             .buyer(test_buyer())
             .add_line(line)
+            .tax_point_date(test_date())
             .build();
 
         assert!(result.is_ok());

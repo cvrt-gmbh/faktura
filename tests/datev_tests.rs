@@ -27,6 +27,7 @@ fn default_config() -> DatevConfig {
 fn domestic_invoice() -> Invoice {
     InvoiceBuilder::new("RE-2024-001", date(2024, 6, 15))
         .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
         .seller(
             PartyBuilder::new(
                 "ACME GmbH",
@@ -58,6 +59,7 @@ fn domestic_invoice() -> Invoice {
 fn mixed_rate_invoice() -> Invoice {
     InvoiceBuilder::new("RE-2024-002", date(2024, 7, 1))
         .due_date(date(2024, 7, 31))
+        .tax_point_date(date(2024, 7, 1))
         .vat_scenario(VatScenario::Mixed)
         .seller(
             PartyBuilder::new(
@@ -91,6 +93,7 @@ fn mixed_rate_invoice() -> Invoice {
 fn credit_note() -> Invoice {
     InvoiceBuilder::new("GS-2024-001", date(2024, 8, 1))
         .type_code(InvoiceTypeCode::CreditNote)
+        .tax_point_date(date(2024, 8, 1))
         .seller(
             PartyBuilder::new(
                 "ACME GmbH",
@@ -118,6 +121,7 @@ fn credit_note() -> Invoice {
 fn eu_invoice() -> Invoice {
     InvoiceBuilder::new("RE-2024-003", date(2024, 9, 1))
         .vat_scenario(VatScenario::IntraCommunitySupply)
+        .tax_point_date(date(2024, 9, 1))
         .seller(
             PartyBuilder::new(
                 "ACME GmbH",

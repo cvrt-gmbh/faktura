@@ -13,6 +13,7 @@ use super::validation;
 /// use chrono::NaiveDate;
 ///
 /// let invoice = InvoiceBuilder::new("RE-2024-001", NaiveDate::from_ymd_opt(2024, 1, 15).unwrap())
+///     .tax_point_date(NaiveDate::from_ymd_opt(2024, 1, 15).unwrap())
 ///     .seller(PartyBuilder::new("ACME GmbH", AddressBuilder::new("Berlin", "10115", "DE").build())
 ///         .vat_id("DE123456789")
 ///         .build())
@@ -174,6 +175,23 @@ impl InvoiceBuilder {
         if self.lines.is_empty() {
             return Err(RechnungError::Builder(
                 "at least one line item is required".into(),
+            ));
+        }
+
+        // Input limits to prevent abuse
+        if self.lines.len() > 10_000 {
+            return Err(RechnungError::Builder(
+                "invoice cannot have more than 10,000 line items".into(),
+            ));
+        }
+        if self.number.len() > 200 {
+            return Err(RechnungError::Builder(
+                "invoice number cannot exceed 200 characters".into(),
+            ));
+        }
+        if self.notes.len() > 100 {
+            return Err(RechnungError::Builder(
+                "invoice cannot have more than 100 notes".into(),
             ));
         }
 

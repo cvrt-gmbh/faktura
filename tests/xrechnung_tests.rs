@@ -13,6 +13,7 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 fn xrechnung_invoice() -> Invoice {
     InvoiceBuilder::new("RE-2024-001", date(2024, 6, 15))
         .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
         .buyer_reference("04011000-12345-03")
         .seller(
             PartyBuilder::new(
@@ -294,6 +295,7 @@ fn xrechnung_valid_invoice_passes() {
 #[test]
 fn xrechnung_missing_buyer_reference() {
     let inv = InvoiceBuilder::new("RE-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
         // No buyer_reference
         .seller(
             PartyBuilder::new(
@@ -338,6 +340,7 @@ fn xrechnung_missing_buyer_reference() {
 #[test]
 fn xrechnung_missing_seller_contact() {
     let inv = InvoiceBuilder::new("RE-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
         .buyer_reference("04011000-12345-03")
         .seller(
             PartyBuilder::new(
@@ -382,6 +385,7 @@ fn xrechnung_missing_seller_contact() {
 #[test]
 fn xrechnung_missing_electronic_addresses() {
     let inv = InvoiceBuilder::new("RE-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
         .buyer_reference("04011000-12345-03")
         .seller(
             PartyBuilder::new(
@@ -427,6 +431,7 @@ fn xrechnung_missing_electronic_addresses() {
 #[test]
 fn xrechnung_missing_payment() {
     let inv = InvoiceBuilder::new("RE-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
         .buyer_reference("04011000-12345-03")
         .seller(
             PartyBuilder::new(
@@ -467,6 +472,7 @@ fn xrechnung_missing_payment() {
 fn ubl_kleinunternehmer_roundtrip() {
     let inv = InvoiceBuilder::new("RE-2024-010", date(2024, 6, 15))
         .vat_scenario(VatScenario::Kleinunternehmer)
+        .tax_point_date(date(2024, 6, 15))
         .buyer_reference("04011000-99999-01")
         .note("Kein Ausweis von Umsatzsteuer, da Kleinunternehmer gemäß §19 UStG")
         .seller(

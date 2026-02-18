@@ -12,6 +12,7 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 fn peppol_invoice() -> Invoice {
     InvoiceBuilder::new("PEPP-001", date(2024, 6, 15))
         .buyer_reference("BR-123")
+        .tax_point_date(date(2024, 6, 15))
         .seller(
             PartyBuilder::new(
                 "Seller GmbH",

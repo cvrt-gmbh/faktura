@@ -13,6 +13,7 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 fn test_invoice() -> Invoice {
     InvoiceBuilder::new("RE-2024-001", date(2024, 6, 15))
         .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
         .buyer_reference("04011000-12345-03")
         .seller(
             PartyBuilder::new(

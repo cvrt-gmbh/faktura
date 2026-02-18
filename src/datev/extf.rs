@@ -415,7 +415,7 @@ fn write_data_row(out: &mut String, row: &DatevRow) {
 
     // Field 11: Belegfeld 1 (invoice number)
     out.push('"');
-    out.push_str(&row.document_number);
+    out.push_str(&escape_csv(&row.document_number));
     out.push('"');
     out.push(';');
 
@@ -427,7 +427,7 @@ fn write_data_row(out: &mut String, row: &DatevRow) {
 
     // Field 14: Buchungstext
     out.push('"');
-    out.push_str(&row.posting_text);
+    out.push_str(&escape_csv(&row.posting_text));
     out.push('"');
 
     // Fields 15-120: mostly empty, but we need specific ones
@@ -439,7 +439,7 @@ fn write_data_row(out: &mut String, row: &DatevRow) {
     // Field 40: EU-Land u. USt-IdNr.
     if let Some(ref vat_id) = row.eu_vat_id {
         out.push('"');
-        out.push_str(vat_id);
+        out.push_str(&escape_csv(vat_id));
         out.push('"');
     }
     out.push(';');
@@ -486,7 +486,21 @@ fn truncate(s: &str, max: usize) -> String {
     if s.len() <= max {
         s.to_string()
     } else {
-        s[..max].to_string()
+        // Safe UTF-8 truncation: find the last char boundary at or before `max`
+        let mut end = max;
+        while end > 0 && !s.is_char_boundary(end) {
+            end -= 1;
+        }
+        s[..end].to_string()
+    }
+}
+
+/// Escape double quotes in DATEV CSV fields by doubling them.
+fn escape_csv(s: &str) -> String {
+    if s.contains('"') {
+        s.replace('"', "\"\"")
+    } else {
+        s.to_string()
     }
 }
 
@@ -514,5 +528,24 @@ mod tests {
     #[test]
     fn truncate_long() {
         assert_eq!(truncate("abcdef", 3), "abc");
+    }
+
+    #[test]
+    fn truncate_utf8_safe() {
+        // "ä" is 2 bytes in UTF-8
+        assert_eq!(truncate("Bücher sind toll", 3), "Bü");
+        // Should not panic on multi-byte boundary
+        assert_eq!(truncate("Ärger", 1), "");
+        assert_eq!(truncate("Ärger", 2), "Ä");
+    }
+
+    #[test]
+    fn escape_csv_no_quotes() {
+        assert_eq!(escape_csv("hello"), "hello");
+    }
+
+    #[test]
+    fn escape_csv_with_quotes() {
+        assert_eq!(escape_csv(r#"say "hi""#), r#"say ""hi"""#);
     }
 }

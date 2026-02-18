@@ -1,6 +1,6 @@
 ---
 source: tests/xrechnung_tests.rs
-assertion_line: 500
+assertion_line: 543
 expression: xml
 ---
 <?xml version="1.0" encoding="UTF-8"?>
@@ -114,6 +114,11 @@ expression: xml
       </ram:BuyerTradeParty>
     </ram:ApplicableHeaderTradeAgreement>
     <ram:ApplicableHeaderTradeDelivery>
+      <ram:ActualDeliverySupplyChainEvent>
+        <ram:OccurrenceDateTime>
+          <udt:DateTimeString format="102">20240615</udt:DateTimeString>
+        </ram:OccurrenceDateTime>
+      </ram:ActualDeliverySupplyChainEvent>
     </ram:ApplicableHeaderTradeDelivery>
     <ram:ApplicableHeaderTradeSettlement>
       <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
