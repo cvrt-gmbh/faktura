@@ -21,7 +21,7 @@
 mod cii;
 mod ubl;
 mod validate;
-mod xml_utils;
+pub(crate) mod xml_utils;
 
 pub use cii::{from_cii_xml, to_cii_xml};
 pub use ubl::{from_ubl_xml, to_ubl_xml};

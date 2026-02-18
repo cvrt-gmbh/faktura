@@ -47,6 +47,7 @@ pub struct InvoiceBuilder {
 }
 
 impl InvoiceBuilder {
+    /// Create a new invoice builder with the required invoice number and issue date.
     pub fn new(number: impl Into<String>, issue_date: NaiveDate) -> Self {
         Self {
             number: number.into(),
@@ -71,56 +72,70 @@ impl InvoiceBuilder {
         }
     }
 
+    /// Set the payment due date (BT-9).
     pub fn due_date(mut self, date: NaiveDate) -> Self {
         self.due_date = Some(date);
         self
     }
 
+    /// Set the invoice type code (BT-3). Defaults to `Invoice` (380).
+    /// Use `CreditNote` (381) for credit notes.
     pub fn type_code(mut self, code: InvoiceTypeCode) -> Self {
         self.type_code = code;
         self
     }
 
+    /// Set the currency code (BT-5). Defaults to `"EUR"`.
+    /// Must be a valid ISO 4217 code.
     pub fn currency(mut self, code: impl Into<String>) -> Self {
         self.currency_code = code.into();
         self
     }
 
+    /// Add a free-text note to the invoice (BT-22).
     pub fn note(mut self, note: impl Into<String>) -> Self {
         self.notes.push(note.into());
         self
     }
 
+    /// Set the buyer reference (BT-10). Required for XRechnung (Leitweg-ID).
     pub fn buyer_reference(mut self, reference: impl Into<String>) -> Self {
         self.buyer_reference = Some(reference.into());
         self
     }
 
+    /// Set the purchase order reference (BT-13).
     pub fn order_reference(mut self, reference: impl Into<String>) -> Self {
         self.order_reference = Some(reference.into());
         self
     }
 
+    /// Set the seller party (BG-4). Required.
     pub fn seller(mut self, party: Party) -> Self {
         self.seller = Some(party);
         self
     }
 
+    /// Set the buyer party (BG-7). Required.
     pub fn buyer(mut self, party: Party) -> Self {
         self.buyer = Some(party);
         self
     }
 
+    /// Add a line item (BG-25). At least one is required.
     pub fn add_line(mut self, line: LineItem) -> Self {
         self.lines.push(line);
         self
     }
 
+    /// Set the VAT scenario. Defaults to `Domestic`.
+    /// This affects DATEV account mapping and validation rules.
     pub fn vat_scenario(mut self, scenario: VatScenario) -> Self {
         self.vat_scenario = scenario;
         self
     }
 
+    /// Add a document-level allowance (BG-20).
     pub fn add_allowance(mut self, allowance: AllowanceCharge) -> Self {
         self.allowances.push(AllowanceCharge {
             is_charge: false,
@@ -129,6 +144,7 @@ impl InvoiceBuilder {
         self
     }
 
+    /// Add a document-level charge (BG-21).
     pub fn add_charge(mut self, charge: AllowanceCharge) -> Self {
         self.charges.push(AllowanceCharge {
             is_charge: true,
@@ -137,26 +153,33 @@ impl InvoiceBuilder {
         self
     }
 
+    /// Set the payment terms description (BT-20), e.g. "Net 30 days".
     pub fn payment_terms(mut self, terms: impl Into<String>) -> Self {
         self.payment_terms = Some(terms.into());
         self
     }
 
+    /// Set the payment instructions (BG-16) including means code and bank details.
     pub fn payment(mut self, payment: PaymentInstructions) -> Self {
         self.payment = Some(payment);
         self
     }
 
+    /// Set the delivery date / tax point date (BT-7, §14 Abs. 4 Nr. 6 UStG).
+    /// Either this or `invoicing_period` is required (except for Kleinbetragsrechnungen).
     pub fn tax_point_date(mut self, date: NaiveDate) -> Self {
         self.tax_point_date = Some(date);
         self
     }
 
+    /// Set the invoicing period (BG-14) as an alternative to `tax_point_date`.
+    /// Satisfies the §14 Abs. 4 Nr. 6 UStG delivery date requirement.
     pub fn invoicing_period(mut self, start: NaiveDate, end: NaiveDate) -> Self {
         self.invoicing_period = Some(Period { start, end });
         self
     }
 
+    /// Set the prepaid amount to deduct from the grand total.
     pub fn prepaid(mut self, amount: Decimal) -> Self {
         self.prepaid = amount;
         self
@@ -283,6 +306,7 @@ pub struct PartyBuilder {
 }
 
 impl PartyBuilder {
+    /// Create a new party with the required name and postal address.
     pub fn new(name: impl Into<String>, address: Address) -> Self {
         Self {
             name: name.into(),
@@ -296,26 +320,31 @@ impl PartyBuilder {
         }
     }
 
+    /// Set the VAT identification number (BT-31/BT-48), e.g. `"DE123456789"`.
     pub fn vat_id(mut self, id: impl Into<String>) -> Self {
         self.vat_id = Some(id.into());
         self
     }
 
+    /// Set the German tax number / Steuernummer (BT-32).
     pub fn tax_number(mut self, num: impl Into<String>) -> Self {
         self.tax_number = Some(num.into());
         self
     }
 
+    /// Set the legal registration identifier (BT-30/BT-47), e.g. HRB number.
     pub fn registration_id(mut self, id: impl Into<String>) -> Self {
         self.registration_id = Some(id.into());
         self
     }
 
+    /// Set the trading name / business name (BT-28).
     pub fn trading_name(mut self, name: impl Into<String>) -> Self {
         self.trading_name = Some(name.into());
         self
     }
 
+    /// Set the contact person details (BG-6/BG-9).
     pub fn contact(
         mut self,
         name: Option<String>,
@@ -326,6 +355,8 @@ impl PartyBuilder {
         self
     }
 
+    /// Set the electronic address (BT-34/BT-49) with EAS scheme code.
+    /// For XRechnung, the seller must have one (typically Leitweg-ID "0204" or email "EM").
     pub fn electronic_address(
         mut self,
         scheme: impl Into<String>,
@@ -363,6 +394,7 @@ pub struct AddressBuilder {
 }
 
 impl AddressBuilder {
+    /// Create a new address with city, postal code, and ISO 3166-1 alpha-2 country code.
     pub fn new(
         city: impl Into<String>,
         postal_code: impl Into<String>,
@@ -378,16 +410,19 @@ impl AddressBuilder {
         }
     }
 
+    /// Set the street address line (BT-35).
     pub fn street(mut self, street: impl Into<String>) -> Self {
         self.street = Some(street.into());
         self
     }
 
+    /// Set the additional address line (BT-36), e.g. building or floor.
     pub fn additional(mut self, additional: impl Into<String>) -> Self {
         self.additional = Some(additional.into());
         self
     }
 
+    /// Set the country subdivision (BT-39), e.g. state or Bundesland.
     pub fn subdivision(mut self, subdivision: impl Into<String>) -> Self {
         self.subdivision = Some(subdivision.into());
         self
@@ -423,6 +458,10 @@ pub struct LineItemBuilder {
 }
 
 impl LineItemBuilder {
+    /// Create a new line item with ID, name, quantity, unit code, and net unit price.
+    ///
+    /// `unit` is a UN/ECE Recommendation 20 code: `"HUR"` (hours), `"C62"` (pieces),
+    /// `"DAY"` (days), `"MON"` (months), `"KGM"` (kilograms), etc.
     pub fn new(
         id: impl Into<String>,
         item_name: impl Into<String>,
@@ -447,37 +486,45 @@ impl LineItemBuilder {
         }
     }
 
+    /// Set the tax category and rate for this line.
+    /// Defaults to `StandardRate` at 19%. Common rates: 19% (standard), 7% (reduced).
     pub fn tax(mut self, category: TaxCategory, rate: Decimal) -> Self {
         self.tax_category = category;
         self.tax_rate = rate;
         self
     }
 
+    /// Set the gross (list) price before line-level allowances (BT-148).
     pub fn gross_price(mut self, price: Decimal) -> Self {
         self.gross_price = Some(price);
         self
     }
 
+    /// Set the item description (BT-154).
     pub fn description(mut self, desc: impl Into<String>) -> Self {
         self.description = Some(desc.into());
         self
     }
 
+    /// Set the seller's item identifier (BT-155).
     pub fn seller_item_id(mut self, id: impl Into<String>) -> Self {
         self.seller_item_id = Some(id.into());
         self
     }
 
+    /// Set the standard item identifier (BT-157), typically a GTIN/EAN.
     pub fn standard_item_id(mut self, id: impl Into<String>) -> Self {
         self.standard_item_id = Some(id.into());
         self
     }
 
+    /// Add a line-level allowance (BG-27).
     pub fn add_allowance(mut self, allowance: AllowanceCharge) -> Self {
         self.allowances.push(allowance);
         self
     }
 
+    /// Add a line-level charge (BG-28).
     pub fn add_charge(mut self, charge: AllowanceCharge) -> Self {
         self.charges.push(charge);
         self

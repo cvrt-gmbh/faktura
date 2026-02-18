@@ -57,3 +57,15 @@ required-features = ["datev"]
 [[example]]
 name = "validation"
 required-features = ["xrechnung"]
+
+[[example]]
+name = "gdpdu_export"
+required-features = ["gdpdu"]
+
+[[example]]
+name = "vat_check"
+required-features = ["vat"]
+
+[[example]]
+name = "peppol_invoice"
+required-features = ["peppol"]
