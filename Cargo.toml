@@ -30,7 +30,7 @@ thiserror = "2"
 # Optional dependencies
 quick-xml = { version = "0.37", features = ["serialize"], optional = true }
 lopdf = { version = "0.34", optional = true }
-reqwest = { version = "0.12", features = ["json"], optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
 serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
