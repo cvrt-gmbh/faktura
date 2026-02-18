@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-02-18
+
+### Fixed
+
+- **xrechnung**: CII element ordering — `SpecifiedTaxRegistration` now emitted after `PostalTradeAddress` and `URIUniversalCommunication` per CII schema (fixes KoSIT schema validation failure)
+- **xrechnung**: UBL now emits `cac:Delivery/cbc:ActualDeliveryDate` for XRechnung compliance (BR-DE-TMP-32)
+- **zugferd**: PDF/A-3 binary header comment (ISO 19005-3, clause 6.1.2) — 4 bytes > 127 after `%PDF` header
+- **zugferd**: Embedded file MIME type now correctly `text/xml` instead of `text#2Fxml` (ISO 19005-3, clause 6.8)
+- **zugferd**: Document ID in PDF trailer for PDF/A-3 compliance (ISO 19005-3, clause 6.1.3)
+
+### Changed
+
+- **zugferd**: PDF version upgraded to 1.7 (required for PDF/A-3)
+
 ## [0.1.2] - 2026-02-18
 
 ### Added

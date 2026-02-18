@@ -57,6 +57,9 @@ expression: xml
       </cac:PartyLegalEntity>
     </cac:Party>
   </cac:AccountingCustomerParty>
+  <cac:Delivery>
+    <cbc:ActualDeliveryDate>2024-06-15</cbc:ActualDeliveryDate>
+  </cac:Delivery>
   <cac:PaymentMeans>
     <cbc:PaymentMeansCode>58</cbc:PaymentMeansCode>
     <cbc:PaymentID>RE-2024-001</cbc:PaymentID>

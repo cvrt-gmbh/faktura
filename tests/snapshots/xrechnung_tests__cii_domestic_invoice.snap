@@ -78,9 +78,6 @@ expression: xml
       <ram:BuyerReference>04011000-12345-03</ram:BuyerReference>
       <ram:SellerTradeParty>
         <ram:Name>ACME GmbH</ram:Name>
-        <ram:SpecifiedTaxRegistration>
-          <ram:ID schemeID="VA">DE123456789</ram:ID>
-        </ram:SpecifiedTaxRegistration>
         <ram:DefinedTradeContact>
           <ram:PersonName>Max Mustermann</ram:PersonName>
           <ram:TelephoneUniversalCommunication>
@@ -99,6 +96,9 @@ expression: xml
         <ram:URIUniversalCommunication>
           <ram:URIID schemeID="EM">seller@acme.de</ram:URIID>
         </ram:URIUniversalCommunication>
+        <ram:SpecifiedTaxRegistration>
+          <ram:ID schemeID="VA">DE123456789</ram:ID>
+        </ram:SpecifiedTaxRegistration>
       </ram:SellerTradeParty>
       <ram:BuyerTradeParty>
         <ram:Name>Kunde AG</ram:Name>

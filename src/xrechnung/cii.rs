@@ -192,20 +192,11 @@ fn write_cii_date(w: &mut XmlWriter, element: &str, date: &NaiveDate) -> Result<
 }
 
 fn write_cii_party(w: &mut XmlWriter, party: &Party, element: &str) -> Result<(), RechnungError> {
+    // CII schema requires strict element order within TradeParty:
+    // Name → SpecifiedLegalOrganization → DefinedTradeContact →
+    // PostalTradeAddress → URIUniversalCommunication → SpecifiedTaxRegistration
     w.start_element(element)?;
     w.text_element("ram:Name", &party.name)?;
-
-    // Tax registrations
-    if let Some(vat_id) = &party.vat_id {
-        w.start_element("ram:SpecifiedTaxRegistration")?;
-        w.text_element_with_attrs("ram:ID", vat_id, &[("schemeID", "VA")])?;
-        w.end_element("ram:SpecifiedTaxRegistration")?;
-    }
-    if let Some(tax_num) = &party.tax_number {
-        w.start_element("ram:SpecifiedTaxRegistration")?;
-        w.text_element_with_attrs("ram:ID", tax_num, &[("schemeID", "FC")])?;
-        w.end_element("ram:SpecifiedTaxRegistration")?;
-    }
 
     // Legal organization
     if let Some(reg_id) = &party.registration_id {
@@ -261,6 +252,18 @@ fn write_cii_party(w: &mut XmlWriter, party: &Party, element: &str) -> Result<()
         w.start_element("ram:URIUniversalCommunication")?;
         w.text_element_with_attrs("ram:URIID", &ea.value, &[("schemeID", &ea.scheme)])?;
         w.end_element("ram:URIUniversalCommunication")?;
+    }
+
+    // Tax registrations (must come LAST per CII schema)
+    if let Some(vat_id) = &party.vat_id {
+        w.start_element("ram:SpecifiedTaxRegistration")?;
+        w.text_element_with_attrs("ram:ID", vat_id, &[("schemeID", "VA")])?;
+        w.end_element("ram:SpecifiedTaxRegistration")?;
+    }
+    if let Some(tax_num) = &party.tax_number {
+        w.start_element("ram:SpecifiedTaxRegistration")?;
+        w.text_element_with_attrs("ram:ID", tax_num, &[("schemeID", "FC")])?;
+        w.end_element("ram:SpecifiedTaxRegistration")?;
     }
 
     w.end_element(element)?;

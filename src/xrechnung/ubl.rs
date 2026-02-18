@@ -88,6 +88,15 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
     // BG-7: Buyer
     write_ubl_party(&mut w, &invoice.buyer, "cac:AccountingCustomerParty")?;
 
+    // BG-13: Delivery information
+    if invoice.tax_point_date.is_some() || invoice.invoicing_period.is_some() {
+        w.start_element("cac:Delivery")?;
+        if let Some(tpd) = &invoice.tax_point_date {
+            w.text_element("cbc:ActualDeliveryDate", &tpd.to_string())?;
+        }
+        w.end_element("cac:Delivery")?;
+    }
+
     // BG-16: Payment means
     if let Some(payment) = &invoice.payment {
         w.start_element("cac:PaymentMeans")?;

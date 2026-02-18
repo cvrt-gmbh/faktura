@@ -25,6 +25,32 @@ pub fn embed_in_pdf(
 
     embed_xml_into_document(&mut doc, xml.as_bytes(), profile)?;
 
+    // PDF/A-3 requires a document ID in the trailer
+    if !doc.trailer.has(b"ID") {
+        let id_bytes = Object::string_literal(format!(
+            "faktura-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        doc.trailer
+            .set("ID", Object::Array(vec![id_bytes.clone(), id_bytes]));
+    }
+
+    // PDF/A-3 requires version 1.7 and a binary header comment (ISO 19005-3, 6.1.2).
+    // lopdf writes "%PDF-{version}\n" as the header. By embedding the binary
+    // comment bytes directly into the version string, all xref offsets computed by
+    // lopdf will correctly account for the extra bytes.
+    //
+    // The version field is written via `write!()` so it goes through UTF-8.
+    // We need 4 bytes > 127 that are also valid UTF-8. Two-byte UTF-8 sequences
+    // (0xC2-0xDF followed by 0x80-0xBF) give us bytes > 127.
+    // We use 4 two-byte UTF-8 chars: each first byte > 0xC0 (>127), satisfying PDF/A.
+    // veraPDF checks the first 4 bytes AFTER the '%' character on line 2.
+    let binary_comment = "\n%\u{00e2}\u{00e3}\u{00cf}\u{00d3}";
+    doc.version = format!("1.7{binary_comment}");
+
     let mut output = Vec::new();
     doc.save_to(&mut output)
         .map_err(|e| RechnungError::Builder(format!("failed to save PDF: {e}")))?;
@@ -41,7 +67,7 @@ fn embed_xml_into_document(
     let ef_stream = Stream::new(
         dictionary! {
             "Type" => "EmbeddedFile",
-            "Subtype" => Object::Name(b"text#2Fxml".to_vec()),
+            "Subtype" => Object::Name(b"text/xml".to_vec()),
             "Params" => dictionary! {
                 "Size" => Object::Integer(xml_bytes.len() as i64),
             },
