@@ -526,6 +526,291 @@ fn ubl_kleinunternehmer_roundtrip() {
 }
 
 // ---------------------------------------------------------------------------
+// Credit Note (type code 381) end-to-end
+// ---------------------------------------------------------------------------
+
+fn credit_note_invoice() -> Invoice {
+    InvoiceBuilder::new("GS-2024-001", date(2024, 6, 15))
+        .type_code(InvoiceTypeCode::CreditNote)
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Gutschrift Beratung", dec!(5), "HUR", dec!(120))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: Some("GS-2024-001".into()),
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: Some("COBADEFFXXX".into()),
+                account_name: Some("ACME GmbH".into()),
+            }),
+        })
+        .payment_terms("Gutschrift wird innerhalb von 14 Tagen erstattet")
+        .build()
+        .expect("valid credit note")
+}
+
+#[test]
+fn credit_note_ubl_generation() {
+    let inv = credit_note_invoice();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    // Must use CreditNote root element, not Invoice
+    assert!(xml.contains("ubl:CreditNote"), "should use CreditNote root");
+    assert!(
+        !xml.contains("ubl:Invoice"),
+        "should not contain Invoice root"
+    );
+    assert!(
+        xml.contains("<cbc:CreditNoteTypeCode>381</cbc:CreditNoteTypeCode>")
+            || xml.contains("<cbc:InvoiceTypeCode>381</cbc:InvoiceTypeCode>"),
+        "should contain type code 381"
+    );
+    // Credit notes use CreditedQuantity
+    assert!(xml.contains("CreditedQuantity") || xml.contains("InvoicedQuantity"));
+    assert!(xml.contains("CreditNoteLine") || xml.contains("InvoiceLine"));
+}
+
+#[test]
+fn credit_note_ubl_roundtrip() {
+    let original = credit_note_invoice();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.type_code, InvoiceTypeCode::CreditNote);
+    assert_eq!(parsed.type_code.code(), 381);
+    assert_eq!(parsed.number, "GS-2024-001");
+    assert_eq!(parsed.lines.len(), 1);
+    assert_eq!(parsed.lines[0].quantity, dec!(5));
+    assert_eq!(parsed.lines[0].unit_price, dec!(120));
+    assert_eq!(parsed.seller.name, "ACME GmbH");
+}
+
+#[test]
+fn credit_note_cii_generation() {
+    let inv = credit_note_invoice();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    // CII always uses CrossIndustryInvoice root
+    assert!(xml.contains("CrossIndustryInvoice"));
+    assert!(xml.contains("<ram:TypeCode>381</ram:TypeCode>"));
+}
+
+#[test]
+fn credit_note_cii_roundtrip() {
+    let original = credit_note_invoice();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    assert_eq!(parsed.type_code, InvoiceTypeCode::CreditNote);
+    assert_eq!(parsed.type_code.code(), 381);
+    assert_eq!(parsed.number, "GS-2024-001");
+    assert_eq!(parsed.lines.len(), 1);
+    assert_eq!(parsed.lines[0].quantity, dec!(5));
+}
+
+#[test]
+fn credit_note_xrechnung_valid() {
+    let inv = credit_note_invoice();
+    let errors = xrechnung::validate_xrechnung(&inv);
+    assert!(
+        errors.is_empty(),
+        "credit note should pass XRechnung validation, got: {:?}",
+        errors
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Document-level allowances/charges (BG-20, BG-21)
+// ---------------------------------------------------------------------------
+
+fn invoice_with_allowance_and_charge() -> Invoice {
+    InvoiceBuilder::new("RE-2024-020", date(2024, 6, 15))
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE")
+                    .street("Friedrichstraße 123")
+                    .build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max Mustermann".into()),
+                Some("+49 30 12345".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE")
+                    .street("Marienplatz 1")
+                    .build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Beratung", dec!(10), "HUR", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .add_allowance(AllowanceCharge {
+            is_charge: false,
+            amount: dec!(50),
+            percentage: None,
+            base_amount: None,
+            tax_category: TaxCategory::StandardRate,
+            tax_rate: dec!(19),
+            reason: Some("Treuerabatt".into()),
+            reason_code: Some("95".into()),
+        })
+        .add_charge(AllowanceCharge {
+            is_charge: true,
+            amount: dec!(25),
+            percentage: None,
+            base_amount: None,
+            tax_category: TaxCategory::StandardRate,
+            tax_rate: dec!(19),
+            reason: Some("Verpackung".into()),
+            reason_code: Some("ABL".into()),
+        })
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: Some("RE-2024-020".into()),
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: Some("COBADEFFXXX".into()),
+                account_name: Some("ACME GmbH".into()),
+            }),
+        })
+        .payment_terms("Zahlbar innerhalb von 30 Tagen")
+        .build()
+        .expect("valid invoice with allowance and charge")
+}
+
+#[test]
+fn allowance_charge_totals_correct() {
+    let inv = invoice_with_allowance_and_charge();
+    let totals = inv.totals.as_ref().unwrap();
+
+    // Line total: 10 * 100 = 1000
+    assert_eq!(totals.line_net_total, dec!(1000));
+    // Allowances: 50
+    assert_eq!(totals.allowances_total, dec!(50));
+    // Charges: 25
+    assert_eq!(totals.charges_total, dec!(25));
+    // Net total: 1000 - 50 + 25 = 975
+    assert_eq!(totals.net_total, dec!(975));
+    // VAT: 975 * 0.19 = 185.25
+    assert_eq!(totals.vat_total, dec!(185.25));
+    // Gross: 975 + 185.25 = 1160.25
+    assert_eq!(totals.gross_total, dec!(1160.25));
+}
+
+#[test]
+fn allowance_charge_ubl_generation() {
+    let inv = invoice_with_allowance_and_charge();
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+
+    assert!(xml.contains("cac:AllowanceCharge"));
+    assert!(xml.contains("<cbc:ChargeIndicator>false</cbc:ChargeIndicator>"));
+    assert!(xml.contains("<cbc:ChargeIndicator>true</cbc:ChargeIndicator>"));
+    assert!(xml.contains("Treuerabatt"));
+    assert!(xml.contains("Verpackung"));
+    assert!(xml.contains("AllowanceTotalAmount"));
+    assert!(xml.contains("ChargeTotalAmount"));
+}
+
+#[test]
+fn allowance_charge_ubl_roundtrip() {
+    let original = invoice_with_allowance_and_charge();
+    let xml = xrechnung::to_ubl_xml(&original).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+
+    assert_eq!(parsed.number, "RE-2024-020");
+    let totals = parsed.totals.as_ref().unwrap();
+    assert_eq!(totals.allowances_total, dec!(50));
+    assert_eq!(totals.charges_total, dec!(25));
+    assert_eq!(totals.net_total, dec!(975));
+    assert_eq!(totals.amount_due, dec!(1160.25));
+}
+
+#[test]
+fn allowance_charge_cii_generation() {
+    let inv = invoice_with_allowance_and_charge();
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+
+    assert!(xml.contains("SpecifiedTradeAllowanceCharge"));
+    assert!(xml.contains("Treuerabatt"));
+    assert!(xml.contains("Verpackung"));
+    assert!(xml.contains("AllowanceTotalAmount"));
+    assert!(xml.contains("ChargeTotalAmount"));
+}
+
+#[test]
+fn allowance_charge_cii_roundtrip() {
+    let original = invoice_with_allowance_and_charge();
+    let xml = xrechnung::to_cii_xml(&original).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+
+    assert_eq!(parsed.number, "RE-2024-020");
+    let totals = parsed.totals.as_ref().unwrap();
+    assert_eq!(totals.allowances_total, dec!(50));
+    assert_eq!(totals.charges_total, dec!(25));
+    assert_eq!(totals.net_total, dec!(975));
+    assert_eq!(totals.amount_due, dec!(1160.25));
+}
+
+#[test]
+fn allowance_charge_xrechnung_valid() {
+    let inv = invoice_with_allowance_and_charge();
+    let errors = xrechnung::validate_xrechnung(&inv);
+    assert!(
+        errors.is_empty(),
+        "invoice with allowances/charges should pass XRechnung validation, got: {:?}",
+        errors
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Snapshot tests (insta)
 // ---------------------------------------------------------------------------
 

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-02-18
+
+### Added
+
+- **tests**: KoSIT XRechnung testsuite integration — all 86 reference XML files (UBL + CII) parse and roundtrip correctly
+- **tests**: ZUGFeRD reference PDF tests — extraction and embedding against real Mustang/EN16931/Extended PDFs
+- **tests**: Credit note (type code 381) end-to-end tests — UBL and CII generation, roundtrip, and XRechnung validation
+- **tests**: Document-level allowances/charges (BG-20/BG-21) end-to-end tests with totals verification
+- **tests**: VIES async integration tests (ignored by default, `--ignored` to run)
+
+### Fixed
+
+- **zugferd**: PDF extraction now handles indirect `EF` references in filespec dictionaries — fixes extraction from MustangBeispiel and similar PDFs
+- **xrechnung**: UBL parser now handles both prefixed (`ubl:Invoice`) and unprefixed (`Invoice`) root elements — fixes parsing of KoSIT 02.xx/03.xx series files
+- **xrechnung**: UBL parser now supports `CreditNoteLine`, `CreditedQuantity`, and `CreditNoteTypeCode` elements
+
+### Changed
+
+- **core**: All validation errors now include EN 16931 BT/BG references and rule IDs (BR-xx) — previously ~20 errors used `ValidationError::new()` without rule context
+
 ## [0.1.3] - 2026-02-18
 
 ### Fixed

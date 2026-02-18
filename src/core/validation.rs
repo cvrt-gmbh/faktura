@@ -111,9 +111,10 @@ pub fn validate_arithmetic(invoice: &Invoice) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     let Some(totals) = &invoice.totals else {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             "totals",
-            "totals must be calculated before validation",
+            "totals must be calculated before validation (call calculate_totals first)",
+            "BR-CO-10",
         ));
         return errors;
     };
@@ -318,9 +319,10 @@ fn validate_address(address: &Address, prefix: &str, errors: &mut Vec<Validation
     }
 
     if address.postal_code.trim().is_empty() {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             format!("{prefix}.postal_code"),
-            "postal code must not be empty",
+            "postal code (BT-38/BT-53) must not be empty",
+            "BR-09",
         ));
     }
 
@@ -331,9 +333,10 @@ fn validate_address(address: &Address, prefix: &str, errors: &mut Vec<Validation
             "BR-09",
         ));
     } else if address.country_code.len() != 2 {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             format!("{prefix}.country_code"),
-            "country code must be 2 characters (ISO 3166-1 alpha-2)",
+            "country code (BT-40/BT-55) must be 2 characters (ISO 3166-1 alpha-2)",
+            "BR-09",
         ));
     }
 }
@@ -350,16 +353,18 @@ fn validate_line(line: &LineItem, index: usize, errors: &mut Vec<ValidationError
     }
 
     if line.quantity.is_zero() {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             format!("{prefix}.quantity"),
-            "quantity must not be zero",
+            "invoiced quantity (BT-129) must not be zero",
+            "BR-22",
         ));
     }
 
     if line.unit_price.is_sign_negative() {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             format!("{prefix}.unit_price"),
-            "unit price must not be negative",
+            "item net price (BT-146) must not be negative",
+            "BR-27",
         ));
     }
 
@@ -372,9 +377,10 @@ fn validate_line(line: &LineItem, index: usize, errors: &mut Vec<ValidationError
     }
 
     if line.tax_rate.is_sign_negative() {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             format!("{prefix}.tax_rate"),
-            "tax rate must not be negative",
+            "line VAT rate (BT-152) must not be negative",
+            "BR-27",
         ));
     }
 
@@ -400,9 +406,10 @@ fn validate_line(line: &LineItem, index: usize, errors: &mut Vec<ValidationError
         }
         TaxCategory::StandardRate => {
             if line.tax_rate.is_zero() {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     format!("{prefix}.tax_rate"),
-                    "standard rate (S) must have a non-zero tax rate",
+                    "standard rate (S) category (BT-151) must have a non-zero VAT rate (BT-152)",
+                    "BR-S-05",
                 ));
             }
         }
@@ -418,18 +425,20 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
                 .iter()
                 .any(|n| n.contains("19") && n.contains("UStG"));
             if !has_19_note {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     "notes",
-                    "Kleinunternehmer invoice must contain a note referencing §19 UStG",
+                    "Kleinunternehmer invoice must contain a note (BT-22) referencing §19 UStG",
+                    "BR-O-10",
                 ));
             }
 
             // All lines must be NotSubjectToVat with 0%
             for (i, line) in invoice.lines.iter().enumerate() {
                 if line.tax_category != TaxCategory::NotSubjectToVat {
-                    errors.push(ValidationError::new(
+                    errors.push(ValidationError::with_rule(
                         format!("lines[{i}].tax_category"),
-                        "Kleinunternehmer lines must use NotSubjectToVat (O) category",
+                        "Kleinunternehmer lines must use NotSubjectToVat (O) category (BT-151), got: {}",
+                        "BR-O-01",
                     ));
                 }
             }
@@ -438,9 +447,10 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
         VatScenario::ReverseCharge => {
             // Buyer must have VAT ID
             if invoice.buyer.vat_id.is_none() {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     "buyer.vat_id",
-                    "reverse charge: buyer must have a VAT ID",
+                    "reverse charge: buyer must have a VAT ID (BT-48)",
+                    "BR-AE-02",
                 ));
             }
 
@@ -450,18 +460,20 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
                 .iter()
                 .any(|n| n.contains("13b") && n.contains("UStG"));
             if !has_13b_note {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     "notes",
-                    "reverse charge invoice must contain a note referencing §13b UStG",
+                    "reverse charge invoice must contain a note (BT-22) referencing §13b UStG",
+                    "BR-AE-10",
                 ));
             }
 
             // All lines must be ReverseCharge category
             for (i, line) in invoice.lines.iter().enumerate() {
                 if line.tax_category != TaxCategory::ReverseCharge {
-                    errors.push(ValidationError::new(
+                    errors.push(ValidationError::with_rule(
                         format!("lines[{i}].tax_category"),
-                        "reverse charge lines must use ReverseCharge (AE) category",
+                        "reverse charge lines must use ReverseCharge (AE) category (BT-151)",
+                        "BR-AE-01",
                     ));
                 }
             }
@@ -470,31 +482,35 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
         VatScenario::IntraCommunitySupply => {
             // Both parties must have VAT IDs
             if invoice.seller.vat_id.is_none() {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     "seller.vat_id",
-                    "intra-community supply: seller must have a VAT ID",
+                    "intra-community supply: seller must have a VAT ID (BT-31)",
+                    "BR-IC-02",
                 ));
             }
             if invoice.buyer.vat_id.is_none() {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     "buyer.vat_id",
-                    "intra-community supply: buyer must have a VAT ID",
+                    "intra-community supply: buyer must have a VAT ID (BT-48)",
+                    "BR-IC-03",
                 ));
             }
 
             // Buyer must be in a different EU country
             if invoice.seller.address.country_code == invoice.buyer.address.country_code {
-                errors.push(ValidationError::new(
+                errors.push(ValidationError::with_rule(
                     "buyer.address.country_code",
-                    "intra-community supply: buyer must be in a different country than seller",
+                    "intra-community supply: buyer country (BT-55) must differ from seller country (BT-40)",
+                    "BR-IC-04",
                 ));
             }
 
             for (i, line) in invoice.lines.iter().enumerate() {
                 if line.tax_category != TaxCategory::IntraCommunitySupply {
-                    errors.push(ValidationError::new(
+                    errors.push(ValidationError::with_rule(
                         format!("lines[{i}].tax_category"),
-                        "intra-community supply lines must use IntraCommunitySupply (K) category",
+                        "intra-community supply lines must use IntraCommunitySupply (K) category (BT-151)",
+                        "BR-IC-01",
                     ));
                 }
             }
@@ -503,9 +519,10 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
         VatScenario::Export => {
             for (i, line) in invoice.lines.iter().enumerate() {
                 if line.tax_category != TaxCategory::Export {
-                    errors.push(ValidationError::new(
+                    errors.push(ValidationError::with_rule(
                         format!("lines[{i}].tax_category"),
-                        "export lines must use Export (G) category",
+                        "export lines must use Export (G) category (BT-151)",
+                        "BR-G-01",
                     ));
                 }
             }
@@ -515,9 +532,13 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
             // §33 UStDV: total must be ≤ €250
             if let Some(totals) = &invoice.totals {
                 if totals.gross_total > dec!(250) {
-                    errors.push(ValidationError::new(
+                    errors.push(ValidationError::with_rule(
                         "totals.gross_total",
-                        "Kleinbetragsrechnung (small invoice) must not exceed €250 gross",
+                        format!(
+                            "Kleinbetragsrechnung (§33 UStDV) gross total (BT-112) must not exceed €250, got: {}",
+                            totals.gross_total
+                        ),
+                        "BR-DE-17",
                     ));
                 }
             }
@@ -537,18 +558,20 @@ fn validate_scenario(invoice: &Invoice, errors: &mut Vec<ValidationError>) {
 /// Validate basic VAT ID format (2 letter country code + digits/chars).
 fn validate_vat_id_format(vat_id: &str, field: &str, errors: &mut Vec<ValidationError>) {
     if vat_id.len() < 4 {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             field,
-            "VAT ID too short (minimum: 2-letter country code + identifier)",
+            format!("VAT ID (BT-31/BT-48) '{vat_id}' too short — expected 2-letter country code + identifier"),
+            "BR-CO-09",
         ));
         return;
     }
 
     let country_prefix = &vat_id[..2];
     if !country_prefix.chars().all(|c| c.is_ascii_uppercase()) {
-        errors.push(ValidationError::new(
+        errors.push(ValidationError::with_rule(
             field,
-            "VAT ID must start with a 2-letter country code (e.g. DE, AT, FR)",
+            format!("VAT ID (BT-31/BT-48) must start with a 2-letter country code (e.g. DE, AT, FR), got: '{}'", &vat_id[..2]),
+            "BR-CO-09",
         ));
     }
 
@@ -556,9 +579,10 @@ fn validate_vat_id_format(vat_id: &str, field: &str, errors: &mut Vec<Validation
     if country_prefix == "DE" {
         let number_part = &vat_id[2..];
         if number_part.len() != 9 || !number_part.chars().all(|c| c.is_ascii_digit()) {
-            errors.push(ValidationError::new(
+            errors.push(ValidationError::with_rule(
                 field,
-                "German VAT ID must be DE followed by exactly 9 digits",
+                format!("German VAT ID must be DE followed by exactly 9 digits (e.g. DE123456789), got: '{vat_id}'"),
+                "BR-CO-09",
             ));
         }
     }

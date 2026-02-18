@@ -85,11 +85,10 @@ fn extract_xml_from_filespec_dict(
     fs_dict: &lopdf::Dictionary,
 ) -> Result<String, String> {
     let ef_obj = fs_dict.get(b"EF").map_err(|e| e.to_string())?;
-    let ef_dict = ef_obj.as_dict().map_err(|e| e.to_string())?;
+    let ef_dict = resolve_dict(doc, ef_obj)?;
 
-    let stream_obj = ef_dict.get(b"F").map_err(|e| e.to_string())?;
-    let stream_id = stream_obj.as_reference().map_err(|e| e.to_string())?;
-    let stream_obj = doc.get_object(stream_id).map_err(|e| e.to_string())?;
+    let f_obj = ef_dict.get(b"F").map_err(|e| e.to_string())?;
+    let stream_obj = resolve_obj(doc, f_obj)?;
     let stream = stream_obj.as_stream().map_err(|e| e.to_string())?;
 
     // decompressed_content() fails if no Filter key exists (uncompressed stream),
@@ -105,6 +104,13 @@ fn resolve_dict<'a>(doc: &'a Document, obj: &'a Object) -> Result<&'a lopdf::Dic
         Object::Reference(id) => doc.get_dictionary(*id).map_err(|e| e.to_string()),
         Object::Dictionary(d) => Ok(d),
         _ => Err("expected dictionary or reference".to_string()),
+    }
+}
+
+fn resolve_obj<'a>(doc: &'a Document, obj: &'a Object) -> Result<&'a Object, String> {
+    match obj {
+        Object::Reference(id) => doc.get_object(*id).map_err(|e| e.to_string()),
+        other => Ok(other),
     }
 }
 

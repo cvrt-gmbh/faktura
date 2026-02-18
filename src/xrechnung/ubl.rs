@@ -395,7 +395,10 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
                     .to_string();
 
                 // Capture attributes for elements that need them
-                if name == "cbc:EndpointID" || name == "cbc:InvoicedQuantity" {
+                if name == "cbc:EndpointID"
+                    || name == "cbc:InvoicedQuantity"
+                    || name == "cbc:CreditedQuantity"
+                {
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
                         let val = std::str::from_utf8(&attr.value).unwrap_or("");
@@ -419,7 +422,7 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
             Ok(Event::End(_)) => {
                 let ended = path.pop().unwrap_or_default();
                 // When we close a line item, push the current line
-                if ended == "cac:InvoiceLine" {
+                if ended == "cac:InvoiceLine" || ended == "cac:CreditNoteLine" {
                     if let Some(line) = invoice.current_line.take() {
                         invoice.lines.push(line);
                     }
@@ -545,6 +548,14 @@ struct ParsedLine {
     tax_rate: Option<String>,
 }
 
+/// Check if a parent element name is a UBL root (with or without `ubl:` prefix).
+fn is_ubl_root(name: &str) -> bool {
+    matches!(
+        name,
+        "ubl:Invoice" | "ubl:CreditNote" | "Invoice" | "CreditNote"
+    )
+}
+
 impl ParsedInvoice {
     fn handle_ubl_text(&mut self, path: &[String], text: &str) {
         let leaf = path.last().map(|s| s.as_str()).unwrap_or("");
@@ -567,22 +578,26 @@ impl ParsedInvoice {
         // Determine context
         let in_seller = path.iter().any(|p| p == "cac:AccountingSupplierParty");
         let in_buyer = path.iter().any(|p| p == "cac:AccountingCustomerParty");
-        let in_line = path.iter().any(|p| p == "cac:InvoiceLine");
+        let in_line = path
+            .iter()
+            .any(|p| p == "cac:InvoiceLine" || p == "cac:CreditNoteLine");
         let in_tax_subtotal = path.iter().any(|p| p == "cac:TaxSubtotal");
         let in_tax_total = path.iter().any(|p| p == "cac:TaxTotal") && !in_line;
 
         // Invoice-level fields
         if !in_seller && !in_buyer && !in_line && !in_tax_total {
             match leaf {
-                "cbc:ID" if parent == "ubl:Invoice" || parent == "ubl:CreditNote" => {
+                "cbc:ID" if is_ubl_root(parent) => {
                     self.number = Some(text.to_string());
                 }
                 "cbc:IssueDate" => self.issue_date = Some(text.to_string()),
                 "cbc:DueDate" => self.due_date = Some(text.to_string()),
-                "cbc:InvoiceTypeCode" => self.type_code = Some(text.to_string()),
+                "cbc:InvoiceTypeCode" | "cbc:CreditNoteTypeCode" => {
+                    self.type_code = Some(text.to_string())
+                }
                 "cbc:DocumentCurrencyCode" => self.currency_code = Some(text.to_string()),
                 "cbc:BuyerReference" => self.buyer_reference = Some(text.to_string()),
-                "cbc:Note" if parent == "ubl:Invoice" || parent == "ubl:CreditNote" => {
+                "cbc:Note" if is_ubl_root(parent) => {
                     self.notes.push(text.to_string());
                 }
                 "cbc:TaxPointDate" => self.tax_point_date = Some(text.to_string()),
@@ -741,12 +756,16 @@ impl ParsedInvoice {
         if in_line {
             let line = self.current_line.get_or_insert_with(Default::default);
             match leaf {
-                "cbc:ID" if parent == "cac:InvoiceLine" => line.id = Some(text.to_string()),
-                "cbc:InvoicedQuantity" => {
+                "cbc:ID" if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" => {
+                    line.id = Some(text.to_string())
+                }
+                "cbc:InvoicedQuantity" | "cbc:CreditedQuantity" => {
                     line.quantity = Some(text.to_string());
                     line.unit = self.current_unit_code.take();
                 }
-                "cbc:LineExtensionAmount" if parent == "cac:InvoiceLine" => {
+                "cbc:LineExtensionAmount"
+                    if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" =>
+                {
                     line.line_amount = Some(text.to_string());
                 }
                 "cbc:Name" if parent == "cac:Item" => line.item_name = Some(text.to_string()),

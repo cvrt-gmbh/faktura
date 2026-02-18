@@ -363,3 +363,49 @@ fn vies_error_display() {
     let e = ViesError::ParseError("invalid json".into());
     assert!(e.to_string().contains("invalid json"));
 }
+
+// ---------------------------------------------------------------------------
+// VIES async integration test (requires network)
+// ---------------------------------------------------------------------------
+
+/// Live VIES API call for a known-valid German VAT ID (BMW AG).
+///
+/// Ignored by default — run with:
+///   cargo test --features vat vies_live -- --ignored --nocapture
+#[tokio::test]
+#[ignore]
+async fn vies_live_check_valid_de() {
+    // BMW AG is a stable, publicly known German VAT ID
+    let result = check_vies("DE", "129273398").await;
+    match result {
+        Ok(r) => {
+            assert!(r.valid, "DE129273398 (BMW AG) should be valid");
+            eprintln!("VIES result: valid={}, name={:?}", r.valid, r.name);
+        }
+        Err(ViesError::ApiError(ref msg))
+            if msg.contains("UNAVAILABLE") || msg.contains("MAX_CONCURRENT") =>
+        {
+            eprintln!("VIES service unavailable or rate-limited, skipping: {msg}");
+        }
+        Err(e) => panic!("unexpected VIES error: {e}"),
+    }
+}
+
+/// Live VIES API call for a known-invalid VAT ID.
+#[tokio::test]
+#[ignore]
+async fn vies_live_check_invalid() {
+    let result = check_vies("DE", "000000000").await;
+    match result {
+        Ok(r) => {
+            assert!(!r.valid, "DE000000000 should be invalid");
+            eprintln!("VIES result: valid={}", r.valid);
+        }
+        Err(ViesError::ApiError(ref msg))
+            if msg.contains("UNAVAILABLE") || msg.contains("MAX_CONCURRENT") =>
+        {
+            eprintln!("VIES service unavailable or rate-limited, skipping: {msg}");
+        }
+        Err(e) => panic!("unexpected VIES error: {e}"),
+    }
+}
