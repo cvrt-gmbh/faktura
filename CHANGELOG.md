@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-02-18
+
+### Added
+
+- **tests**: Malformed XML input tests — empty string, non-XML, truncated XML, wrong root element, cross-format confusion (UBL↔CII)
+- **tests**: Corrupt PDF input tests — empty bytes, non-PDF bytes, truncated PDF for both extract and embed
+- **tests**: Peppol credit note generation, roundtrip, and validation
+
 ## [0.1.4] - 2026-02-18
 
 ### Added
@@ -14,9 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **tests**: Credit note (type code 381) end-to-end tests — UBL and CII generation, roundtrip, and XRechnung validation
 - **tests**: Document-level allowances/charges (BG-20/BG-21) end-to-end tests with totals verification
 - **tests**: VIES async integration tests (ignored by default, `--ignored` to run)
-- **tests**: Malformed XML input tests — empty string, non-XML, truncated XML, wrong root element, cross-format confusion (UBL↔CII)
-- **tests**: Corrupt PDF input tests — empty bytes, non-PDF bytes, truncated PDF for both extract and embed
-- **tests**: Peppol credit note generation, roundtrip, and validation
 
 ### Fixed
 
