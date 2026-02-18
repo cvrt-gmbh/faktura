@@ -243,7 +243,10 @@ fn to_basicwl_xml(invoice: &Invoice) -> Result<String, RechnungError> {
 
     // Monetary summation
     w.start_element("ram:SpecifiedTradeSettlementHeaderMonetarySummation")?;
-    w.text_element("ram:LineTotalAmount", &format_decimal(totals.line_net_total))?;
+    w.text_element(
+        "ram:LineTotalAmount",
+        &format_decimal(totals.line_net_total),
+    )?;
     w.text_element("ram:TaxBasisTotalAmount", &format_decimal(totals.net_total))?;
     w.text_element_with_attrs(
         "ram:TaxTotalAmount",
