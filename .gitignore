@@ -3,7 +3,7 @@ Cargo.lock
 *.swp
 *.swo
 .DS_Store
-PRD.md
 /validation/
 fuzz/artifacts/
 fuzz/corpus/
+.ralphy/
