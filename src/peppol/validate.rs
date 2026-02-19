@@ -3,6 +3,7 @@
 //! These rules are stricter than base EN 16931 and XRechnung.
 
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 
 use crate::core::*;
 
@@ -180,6 +181,51 @@ pub fn validate_peppol(invoice: &Invoice) -> Vec<ValidationError> {
         }
     }
 
+    // PEPPOL-EN16931-R080: Total size of embedded attachments should not exceed 200 MB
+    {
+        let total_bytes: usize = invoice
+            .attachments
+            .iter()
+            .filter_map(|a| a.embedded_document.as_ref())
+            .map(|doc| doc.content.len()) // base64 length ≈ 4/3 × raw
+            .sum();
+        // base64 is ~33% overhead, so raw ≈ total_bytes * 3/4
+        // but we check raw size, so decode factor: 200 MB in base64 ≈ 267 MB
+        // Peppol spec references raw size, so estimate raw from base64 length
+        let estimated_raw = total_bytes * 3 / 4;
+        const MAX_ATTACHMENT_BYTES: usize = 200 * 1024 * 1024; // 200 MB
+        if estimated_raw > MAX_ATTACHMENT_BYTES {
+            errors.push(ValidationError::with_rule(
+                "attachments",
+                format!(
+                    "total embedded attachment size ~{} MB exceeds Peppol 200 MB limit",
+                    estimated_raw / (1024 * 1024)
+                ),
+                "PEPPOL-EN16931-R080",
+            ));
+        }
+    }
+
+    // PEPPOL-EN16931-R100: Line extension amount = quantity × price ± line allowances/charges
+    for (i, line) in invoice.lines.iter().enumerate() {
+        if let Some(line_amount) = line.line_amount {
+            let allowances: Decimal = line.allowances.iter().map(|a| a.amount).sum();
+            let charges: Decimal = line.charges.iter().map(|c| c.amount).sum();
+            let expected = line.quantity * line.unit_price - allowances + charges;
+            let diff = (line_amount - expected).abs();
+            if diff > dec!(0.01) {
+                errors.push(ValidationError::with_rule(
+                    format!("lines[{i}].line_amount"),
+                    format!(
+                        "line extension amount {} does not match qty {} × price {} - allowances {} + charges {} = {} (tolerance ±0.01)",
+                        line_amount, line.quantity, line.unit_price, allowances, charges, expected
+                    ),
+                    "PEPPOL-EN16931-R100",
+                ));
+            }
+        }
+    }
+
     errors
 }
 
@@ -301,6 +347,54 @@ mod tests {
             !errors
                 .iter()
                 .any(|e| e.rule.as_deref() == Some("PEPPOL-EN16931-P0112"))
+        );
+    }
+
+    #[test]
+    fn r100_correct_line_amount_passes() {
+        let inv = valid_peppol_invoice();
+        let errors = validate_peppol(&inv);
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.rule.as_deref() == Some("PEPPOL-EN16931-R100")),
+            "valid line amounts should pass R100"
+        );
+    }
+
+    #[test]
+    fn r100_wrong_line_amount_detected() {
+        let mut inv = valid_peppol_invoice();
+        // Manually set a wrong line_amount (should be 10 × 100 = 1000)
+        inv.lines[0].line_amount = Some(dec!(999));
+        let errors = validate_peppol(&inv);
+        assert!(
+            errors
+                .iter()
+                .any(|e| e.rule.as_deref() == Some("PEPPOL-EN16931-R100")),
+            "wrong line amount should trigger R100"
+        );
+    }
+
+    #[test]
+    fn r080_small_attachments_pass() {
+        let mut inv = valid_peppol_invoice();
+        inv.attachments.push(DocumentAttachment {
+            id: Some("ATT-1".into()),
+            description: Some("Test".into()),
+            external_uri: None,
+            embedded_document: Some(EmbeddedDocument {
+                content: "SGVsbG8gV29ybGQ=".into(), // small base64
+                mime_type: "text/plain".into(),
+                filename: "test.txt".into(),
+            }),
+        });
+        let errors = validate_peppol(&inv);
+        assert!(
+            !errors
+                .iter()
+                .any(|e| e.rule.as_deref() == Some("PEPPOL-EN16931-R080")),
+            "small attachments should pass R080"
         );
     }
 }

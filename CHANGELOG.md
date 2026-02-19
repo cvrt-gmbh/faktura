@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] - 2026-02-19
+
+### Added
+
+- **core**: ISO 4217 currency code validation — `is_known_currency_code()` with 44 common codes, integrated into `validate_14_ustg()` BR-05
+- **core**: ISO 3166-1 alpha-2 country code validation — `is_known_country_code()` with all 249 codes, integrated into address validation
+- **core**: UNTDID 5189/7161 reason code validation — `is_known_allowance_reason()` and `is_known_charge_reason()`, integrated into `validate_en16931()`
+- **core**: Delivery address country code validation in `validate_en16931()`
+- **peppol**: R080 — attachment total size limit (200 MB)
+- **peppol**: R100 — per-line extension amount arithmetic check (qty × price ± allowances/charges, ±0.01 tolerance)
+- **bench**: Criterion benchmarks for build, UBL/CII serialize/parse, and validation
+
 ## [0.1.10] - 2026-02-19
 
 ### Added

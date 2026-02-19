@@ -42,6 +42,15 @@ pub fn validate_14_ustg(invoice: &Invoice) -> Vec<ValidationError> {
             "currency code must be 3 characters (ISO 4217)",
             "BR-05",
         ));
+    } else if !super::currencies::is_known_currency_code(&invoice.currency_code) {
+        errors.push(ValidationError::with_rule(
+            "currency_code",
+            format!(
+                "currency code '{}' is not a known ISO 4217 code",
+                invoice.currency_code
+            ),
+            "BR-05",
+        ));
     }
 
     // §14 Abs. 4 Nr. 1 — Seller name and address
@@ -342,6 +351,15 @@ fn validate_address(address: &Address, prefix: &str, errors: &mut Vec<Validation
             "country code (BT-40/BT-55) must be 2 characters (ISO 3166-1 alpha-2)",
             "BR-09",
         ));
+    } else if !super::countries::is_known_country_code(&address.country_code) {
+        errors.push(ValidationError::with_rule(
+            format!("{prefix}.country_code"),
+            format!(
+                "country code '{}' is not a known ISO 3166-1 alpha-2 code",
+                address.country_code
+            ),
+            "BR-09",
+        ));
     }
 }
 
@@ -631,6 +649,55 @@ pub fn validate_en16931(invoice: &Invoice) -> Vec<ValidationError> {
             "buyer postal address must have a country code",
             "BR-12",
         ));
+    }
+
+    // Delivery address country code validation
+    if let Some(ref delivery) = invoice.delivery {
+        if let Some(ref addr) = delivery.delivery_address {
+            if !addr.country_code.is_empty()
+                && addr.country_code.len() == 2
+                && !super::countries::is_known_country_code(&addr.country_code)
+            {
+                errors.push(ValidationError::with_rule(
+                    "delivery.delivery_address.country_code",
+                    format!(
+                        "delivery country code '{}' is not a known ISO 3166-1 alpha-2 code",
+                        addr.country_code
+                    ),
+                    "BR-57",
+                ));
+            }
+        }
+    }
+
+    // UNTDID 5189/7161 reason code validation for document-level allowances/charges
+    for (i, ac) in invoice.allowances.iter().enumerate() {
+        if let Some(ref code) = ac.reason_code {
+            if !super::reason_codes::is_known_allowance_reason(code) {
+                errors.push(ValidationError::with_rule(
+                    format!("allowances[{i}].reason_code"),
+                    format!(
+                        "allowance reason code '{}' is not a known UNTDID 5189 code",
+                        code
+                    ),
+                    "BR-CO-21",
+                ));
+            }
+        }
+    }
+    for (i, ac) in invoice.charges.iter().enumerate() {
+        if let Some(ref code) = ac.reason_code {
+            if !super::reason_codes::is_known_charge_reason(code) {
+                errors.push(ValidationError::with_rule(
+                    format!("charges[{i}].reason_code"),
+                    format!(
+                        "charge reason code '{}' is not a known UNTDID 7161 code",
+                        code
+                    ),
+                    "BR-CO-22",
+                ));
+            }
+        }
     }
 
     // BR-13: An Invoice shall have the seller tax identifier or tax registration

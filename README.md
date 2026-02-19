@@ -89,11 +89,21 @@ The builder pattern (`InvoiceBuilder`, `PartyBuilder`, `LineItemBuilder`) auto-c
 Three levels of validation, plus convenience roll-ups:
 
 - **`validate_14_ustg()`** — German §14 UStG mandatory fields
-- **`validate_en16931()`** — EN 16931 business rules (BR-01 through BR-65, unit codes, category-specific rules)
+- **`validate_en16931()`** — EN 16931 business rules (BR-01 through BR-65, unit codes, currency codes, country codes, reason codes, category-specific rules)
 - **`validate_arithmetic()`** — Totals consistency checks
 - **`validate_xrechnung_full()`** — All of the above + XRechnung BR-DE-* rules in one call
 - **`validate_peppol_full()`** — All of the above + Peppol PEPPOL-EN16931-* rules in one call
 - **`InvoiceBuilder::build_strict()`** — Builder that runs §14 UStG + EN 16931 validation before returning
+
+Code list validation (built-in, no external files needed):
+
+| Code List | Function | Codes |
+|-----------|----------|-------|
+| ISO 4217 | `is_known_currency_code()` | 44 common currencies |
+| ISO 3166-1 | `is_known_country_code()` | All 249 alpha-2 codes |
+| UN/CEFACT Rec 20 | `is_known_unit_code()` | 85 common unit codes |
+| UNTDID 5189 | `is_known_allowance_reason()` | 19 allowance reason codes |
+| UNTDID 7161 | `is_known_charge_reason()` | 17 charge reason codes |
 
 ### XML Parsing
 
