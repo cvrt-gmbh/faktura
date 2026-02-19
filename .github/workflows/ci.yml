@@ -72,10 +72,11 @@ jobs:
         run: cargo install cargo-fuzz
       - name: Seed corpus
         run: |
-          mkdir -p fuzz/corpus/fuzz_ubl_parse fuzz/corpus/fuzz_cii_parse fuzz/corpus/fuzz_xml_autodetect fuzz/corpus/fuzz_ubl_roundtrip
+          mkdir -p fuzz/corpus/fuzz_ubl_parse fuzz/corpus/fuzz_cii_parse fuzz/corpus/fuzz_xml_autodetect fuzz/corpus/fuzz_ubl_roundtrip fuzz/corpus/fuzz_cii_roundtrip
           find tests/fixtures/xrechnung-testsuite -name "*_ubl.xml" -exec cp {} fuzz/corpus/fuzz_ubl_parse/ \;
           find tests/fixtures/xrechnung-testsuite -name "*_ubl.xml" -exec cp {} fuzz/corpus/fuzz_ubl_roundtrip/ \;
           find tests/fixtures/xrechnung-testsuite -name "*uncefact*" -exec cp {} fuzz/corpus/fuzz_cii_parse/ \;
+          find tests/fixtures/xrechnung-testsuite -name "*uncefact*" -exec cp {} fuzz/corpus/fuzz_cii_roundtrip/ \;
           find tests/fixtures/xrechnung-testsuite -name "*.xml" -exec cp {} fuzz/corpus/fuzz_xml_autodetect/ \;
       - name: Fuzz UBL parser (60s)
         run: cargo +nightly fuzz run fuzz_ubl_parse -- -max_total_time=60
@@ -85,3 +86,7 @@ jobs:
         run: cargo +nightly fuzz run fuzz_xml_autodetect -- -max_total_time=60
       - name: Fuzz UBL roundtrip (60s)
         run: cargo +nightly fuzz run fuzz_ubl_roundtrip -- -max_total_time=60
+      - name: Fuzz CII roundtrip (60s)
+        run: cargo +nightly fuzz run fuzz_cii_roundtrip -- -max_total_time=60
+      - name: Fuzz ZUGFeRD extract (60s)
+        run: cargo +nightly fuzz run fuzz_zugferd_extract -- -max_total_time=60

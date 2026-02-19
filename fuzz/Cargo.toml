@@ -34,5 +34,15 @@ name = "fuzz_ubl_roundtrip"
 path = "fuzz_targets/fuzz_ubl_roundtrip.rs"
 doc = false
 
+[[bin]]
+name = "fuzz_cii_roundtrip"
+path = "fuzz_targets/fuzz_cii_roundtrip.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_zugferd_extract"
+path = "fuzz_targets/fuzz_zugferd_extract.rs"
+doc = false
+
 [workspace]
 members = ["."]
