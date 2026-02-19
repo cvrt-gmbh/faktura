@@ -21,8 +21,16 @@ pub struct Invoice {
     pub notes: Vec<String>,
     /// BT-10: Buyer reference (Leitweg-ID for XRechnung).
     pub buyer_reference: Option<String>,
+    /// BT-11: Project reference.
+    pub project_reference: Option<String>,
+    /// BT-12: Contract reference.
+    pub contract_reference: Option<String>,
     /// BT-13: Purchase order reference.
     pub order_reference: Option<String>,
+    /// BT-14: Sales order reference.
+    pub sales_order_reference: Option<String>,
+    /// BT-19: Buyer accounting reference.
+    pub buyer_accounting_reference: Option<String>,
     /// BG-4: Seller.
     pub seller: Party,
     /// BG-7: Buyer.

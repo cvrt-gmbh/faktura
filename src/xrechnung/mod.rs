@@ -25,7 +25,7 @@ pub(crate) mod xml_utils;
 
 pub use cii::{from_cii_xml, to_cii_xml};
 pub use ubl::{from_ubl_xml, to_ubl_xml};
-pub use validate::validate_xrechnung;
+pub use validate::{validate_xrechnung, validate_xrechnung_full};
 
 /// XRechnung 3.0 specification identifier (BT-24).
 pub const XRECHNUNG_CUSTOMIZATION_ID: &str =

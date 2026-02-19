@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2026-02-19
+
+### Added
+
+- **core**: Project reference (BT-11) — `project_reference: Option<String>` on `Invoice` with builder support
+- **core**: Contract reference (BT-12) — `contract_reference: Option<String>` on `Invoice` with builder support
+- **core**: Sales order reference (BT-14) — `sales_order_reference: Option<String>` on `Invoice` with builder support
+- **core**: Buyer accounting reference (BT-19) — `buyer_accounting_reference: Option<String>` on `Invoice` with builder support
+- **core**: Duplicate line ID validation (BR-CO-04) in `validate_en16931()`
+- **xrechnung**: UBL/CII serialization and parsing for BT-11, BT-12, BT-14, BT-19
+- **xrechnung**: `validate_xrechnung_full()` convenience function combining `validate_14_ustg`, `validate_en16931`, and `validate_xrechnung` into one call
+- **xrechnung**: UBL creditor ID (BT-90) now serialized/parsed in `cac:PaymentMandate/cac:PayerParty/cac:PartyIdentification`
+- **tests**: 11 new tests — tax representative exemption, duplicate line IDs, validate_en16931 rules, ZeroRated e2e, CII buyer Steuernummer roundtrip, UBL creditor_id roundtrip, BT references roundtrip (UBL + CII)
+
+### Fixed
+
+- **core**: Tax representative (BG-11) now exempts seller from VAT ID / tax number requirement (BR-CO-06/BR-CO-09)
+- **xrechnung**: BR-DE-16 now accounts for tax representative exemption
+- **zugferd**: BasicWL profile `write_cii_party` now emits tax number (FC scheme) in addition to VAT ID (VA scheme)
+- **xrechnung**: UBL creditor ID (BT-90) no longer lost during roundtrip
+
 ## [0.1.8] - 2026-02-19
 
 ### Added

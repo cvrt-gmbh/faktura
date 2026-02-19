@@ -34,7 +34,11 @@ pub struct InvoiceBuilder {
     vat_total_in_tax_currency: Option<Decimal>,
     notes: Vec<String>,
     buyer_reference: Option<String>,
+    project_reference: Option<String>,
+    contract_reference: Option<String>,
     order_reference: Option<String>,
+    sales_order_reference: Option<String>,
+    buyer_accounting_reference: Option<String>,
     seller: Option<Party>,
     buyer: Option<Party>,
     lines: Vec<LineItem>,
@@ -66,7 +70,11 @@ impl InvoiceBuilder {
             vat_total_in_tax_currency: None,
             notes: Vec::new(),
             buyer_reference: None,
+            project_reference: None,
+            contract_reference: None,
             order_reference: None,
+            sales_order_reference: None,
+            buyer_accounting_reference: None,
             seller: None,
             buyer: None,
             lines: Vec::new(),
@@ -118,9 +126,33 @@ impl InvoiceBuilder {
         self
     }
 
+    /// Set the project reference (BT-11).
+    pub fn project_reference(mut self, reference: impl Into<String>) -> Self {
+        self.project_reference = Some(reference.into());
+        self
+    }
+
+    /// Set the contract reference (BT-12).
+    pub fn contract_reference(mut self, reference: impl Into<String>) -> Self {
+        self.contract_reference = Some(reference.into());
+        self
+    }
+
     /// Set the purchase order reference (BT-13).
     pub fn order_reference(mut self, reference: impl Into<String>) -> Self {
         self.order_reference = Some(reference.into());
+        self
+    }
+
+    /// Set the sales order reference (BT-14).
+    pub fn sales_order_reference(mut self, reference: impl Into<String>) -> Self {
+        self.sales_order_reference = Some(reference.into());
+        self
+    }
+
+    /// Set the buyer accounting reference (BT-19).
+    pub fn buyer_accounting_reference(mut self, reference: impl Into<String>) -> Self {
+        self.buyer_accounting_reference = Some(reference.into());
         self
     }
 
@@ -292,7 +324,11 @@ impl InvoiceBuilder {
             tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
+            project_reference: self.project_reference,
+            contract_reference: self.contract_reference,
             order_reference: self.order_reference,
+            sales_order_reference: self.sales_order_reference,
+            buyer_accounting_reference: self.buyer_accounting_reference,
             seller,
             buyer,
             lines: self.lines,
@@ -354,7 +390,11 @@ impl InvoiceBuilder {
             tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
+            project_reference: self.project_reference,
+            contract_reference: self.contract_reference,
             order_reference: self.order_reference,
+            sales_order_reference: self.sales_order_reference,
+            buyer_accounting_reference: self.buyer_accounting_reference,
             seller,
             buyer,
             lines: self.lines,

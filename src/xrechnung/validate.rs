@@ -1,5 +1,16 @@
 use crate::core::*;
 
+/// Run all validation layers for XRechnung compliance in one call.
+///
+/// Combines `validate_14_ustg`, `validate_en16931`, and `validate_xrechnung`
+/// into a single convenience function. Returns all errors found.
+pub fn validate_xrechnung_full(invoice: &Invoice) -> Vec<ValidationError> {
+    let mut errors = crate::core::validate_14_ustg(invoice);
+    errors.extend(crate::core::validate_en16931(invoice));
+    errors.extend(validate_xrechnung(invoice));
+    errors
+}
+
 /// Validate an invoice against XRechnung-specific rules (BR-DE-*).
 ///
 /// This is additional to the core `validate_14_ustg` — call both for
@@ -112,7 +123,12 @@ pub fn validate_xrechnung(invoice: &Invoice) -> Vec<ValidationError> {
     }
 
     // BR-DE-16: At least one of: seller VAT ID (BT-31), seller tax number (BT-32)
-    if invoice.seller.vat_id.is_none() && invoice.seller.tax_number.is_none() {
+    // Exception: when a tax representative (BG-11) is present, the representative's
+    // VAT ID satisfies this requirement.
+    if invoice.tax_representative.is_none()
+        && invoice.seller.vat_id.is_none()
+        && invoice.seller.tax_number.is_none()
+    {
         errors.push(ValidationError::with_rule(
             "seller",
             "XRechnung requires seller VAT ID (BT-31) or tax number (BT-32)",

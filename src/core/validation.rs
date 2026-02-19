@@ -51,7 +51,10 @@ pub fn validate_14_ustg(invoice: &Invoice) -> Vec<ValidationError> {
     validate_party_buyer(&invoice.buyer, "buyer", &invoice.vat_scenario, &mut errors);
 
     // §14 Abs. 4 Nr. 2 — Tax number or VAT ID of seller
+    // BR-CO-06: When a tax representative (BG-11) is present, the seller's own
+    // VAT ID / tax number is not required — the representative's VAT ID suffices.
     if invoice.vat_scenario != VatScenario::SmallInvoice
+        && invoice.tax_representative.is_none()
         && invoice.seller.vat_id.is_none()
         && invoice.seller.tax_number.is_none()
     {
@@ -598,6 +601,20 @@ fn validate_vat_id_format(vat_id: &str, field: &str, errors: &mut Vec<Validation
 pub fn validate_en16931(invoice: &Invoice) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
+    // BR-CO-04: Each invoice line identifier (BT-126) must be unique
+    {
+        let mut seen = std::collections::HashSet::new();
+        for (i, line) in invoice.lines.iter().enumerate() {
+            if !seen.insert(&line.id) {
+                errors.push(ValidationError::with_rule(
+                    format!("lines[{i}].id"),
+                    format!("duplicate line identifier '{}'", line.id),
+                    "BR-CO-04",
+                ));
+            }
+        }
+    }
+
     // BR-11: Seller postal address shall have a country code
     if invoice.seller.address.country_code.trim().is_empty() {
         errors.push(ValidationError::with_rule(
@@ -1068,5 +1085,99 @@ mod tests {
         assert!(result.is_ok());
         let inv = result.unwrap();
         assert_eq!(inv.totals.unwrap().vat_total, dec!(0));
+    }
+
+    #[test]
+    fn tax_representative_exempts_seller_tax_id() {
+        // Seller without VAT ID or tax number, but with tax representative
+        let seller = PartyBuilder::new("Foreign Co", test_address("FR")).build();
+
+        let result = InvoiceBuilder::new("TR-001", test_date())
+            .seller(seller)
+            .buyer(test_buyer())
+            .add_line(test_line())
+            .tax_point_date(test_date())
+            .tax_representative(TaxRepresentative {
+                name: "Steuerberater GmbH".into(),
+                vat_id: "DE987654321".into(),
+                address: test_address("DE"),
+            })
+            .build();
+
+        assert!(
+            result.is_ok(),
+            "tax representative should exempt seller VAT/tax number requirement"
+        );
+    }
+
+    #[test]
+    fn duplicate_line_ids_detected() {
+        let inv = InvoiceBuilder::new("DUP-001", test_date())
+            .seller(test_seller())
+            .buyer(test_buyer())
+            .add_line(
+                LineItemBuilder::new("1", "Item A", dec!(1), "C62", dec!(100))
+                    .tax(TaxCategory::StandardRate, dec!(19))
+                    .build(),
+            )
+            .add_line(
+                LineItemBuilder::new("1", "Item B", dec!(2), "C62", dec!(200))
+                    .tax(TaxCategory::StandardRate, dec!(19))
+                    .build(),
+            )
+            .tax_point_date(test_date())
+            .build()
+            .unwrap();
+
+        let errors = validate_en16931(&inv);
+        assert!(
+            errors.iter().any(|e| e.rule.as_deref() == Some("BR-CO-04")),
+            "expected BR-CO-04 for duplicate line IDs"
+        );
+    }
+
+    #[test]
+    fn en16931_standard_rate_must_be_nonzero() {
+        let inv = InvoiceBuilder::new("EN-001", test_date())
+            .seller(test_seller())
+            .buyer(test_buyer())
+            .add_line(test_line())
+            .tax_point_date(test_date())
+            .build()
+            .unwrap();
+
+        let errors = validate_en16931(&inv);
+        // Valid invoice should have no errors
+        assert!(errors.is_empty(), "expected no errors, got: {:?}", errors);
+    }
+
+    #[test]
+    fn en16931_exempt_needs_reason() {
+        let line = LineItemBuilder::new("1", "Tax-free", dec!(1), "C62", dec!(100))
+            .tax(TaxCategory::Exempt, dec!(0))
+            .build();
+
+        let mut inv = InvoiceBuilder::new("EN-002", test_date())
+            .seller(test_seller())
+            .buyer(test_buyer())
+            .add_line(line)
+            .tax_point_date(test_date())
+            .vat_scenario(VatScenario::Mixed)
+            .build()
+            .unwrap();
+
+        // Clear auto-generated exemption reasons
+        if let Some(ref mut totals) = inv.totals {
+            for vb in &mut totals.vat_breakdown {
+                vb.exemption_reason = None;
+                vb.exemption_reason_code = None;
+            }
+        }
+
+        let errors = validate_en16931(&inv);
+        assert!(
+            errors.iter().any(|e| e.rule.as_deref() == Some("BR-E-10")),
+            "expected BR-E-10 for exempt without reason"
+        );
     }
 }

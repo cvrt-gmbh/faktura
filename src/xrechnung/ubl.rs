@@ -72,10 +72,20 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
         w.text_element("cbc:BuyerReference", br)?;
     }
 
-    // BT-13: Order reference
-    if let Some(or) = &invoice.order_reference {
+    // BT-19: Buyer accounting reference
+    if let Some(acr) = &invoice.buyer_accounting_reference {
+        w.text_element("cbc:AccountingCost", acr)?;
+    }
+
+    // BT-13 / BT-14: Order reference
+    if invoice.order_reference.is_some() || invoice.sales_order_reference.is_some() {
         w.start_element("cac:OrderReference")?;
-        w.text_element("cbc:ID", or)?;
+        if let Some(or) = &invoice.order_reference {
+            w.text_element("cbc:ID", or)?;
+        }
+        if let Some(sor) = &invoice.sales_order_reference {
+            w.text_element("cbc:SalesOrderID", sor)?;
+        }
         w.end_element("cac:OrderReference")?;
     }
 
@@ -89,6 +99,13 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
         }
         w.end_element("cac:InvoiceDocumentReference")?;
         w.end_element("cac:BillingReference")?;
+    }
+
+    // BT-12: Contract reference
+    if let Some(cr) = &invoice.contract_reference {
+        w.start_element("cac:ContractDocumentReference")?;
+        w.text_element("cbc:ID", cr)?;
+        w.end_element("cac:ContractDocumentReference")?;
     }
 
     // BG-24: Document attachments
@@ -112,6 +129,13 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
             w.end_element("cac:Attachment")?;
         }
         w.end_element("cac:AdditionalDocumentReference")?;
+    }
+
+    // BT-11: Project reference
+    if let Some(pr) = &invoice.project_reference {
+        w.start_element("cac:ProjectReference")?;
+        w.text_element("cbc:ID", pr)?;
+        w.end_element("cac:ProjectReference")?;
     }
 
     // BG-14: Invoicing period
@@ -272,6 +296,14 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
             w.start_element("cac:PaymentMandate")?;
             if let Some(mandate_id) = &dd.mandate_id {
                 w.text_element("cbc:ID", mandate_id)?;
+            }
+            // BT-90: Bank assigned creditor identifier
+            if let Some(creditor_id) = &dd.creditor_id {
+                w.start_element("cac:PayerParty")?;
+                w.start_element("cac:PartyIdentification")?;
+                w.text_element("cbc:ID", creditor_id)?;
+                w.end_element("cac:PartyIdentification")?;
+                w.end_element("cac:PayerParty")?;
             }
             if let Some(account_id) = &dd.debited_account_id {
                 w.start_element("cac:PayerFinancialAccount")?;
@@ -755,7 +787,11 @@ struct ParsedInvoice {
     currency_code: Option<String>,
     tax_currency_code: Option<String>,
     buyer_reference: Option<String>,
+    project_reference: Option<String>,
+    contract_reference: Option<String>,
     order_reference: Option<String>,
+    sales_order_reference: Option<String>,
+    buyer_accounting_reference: Option<String>,
     notes: Vec<String>,
     tax_point_date: Option<String>,
     preceding_invoices: Vec<ParsedPrecedingInvoice>,
@@ -824,6 +860,7 @@ struct ParsedInvoice {
     card_holder_name: Option<String>,
     // BG-19: Direct debit
     direct_debit_mandate_id: Option<String>,
+    direct_debit_creditor_id: Option<String>,
     direct_debit_account_id: Option<String>,
     payment_iban: Option<String>,
     payment_bic: Option<String>,
@@ -998,12 +1035,24 @@ impl ParsedInvoice {
                 "cbc:DocumentCurrencyCode" => self.currency_code = Some(text.to_string()),
                 "cbc:TaxCurrencyCode" => self.tax_currency_code = Some(text.to_string()),
                 "cbc:BuyerReference" => self.buyer_reference = Some(text.to_string()),
+                "cbc:AccountingCost" if is_ubl_root(parent) => {
+                    self.buyer_accounting_reference = Some(text.to_string());
+                }
                 "cbc:Note" if is_ubl_root(parent) => {
                     self.notes.push(text.to_string());
                 }
                 "cbc:TaxPointDate" => self.tax_point_date = Some(text.to_string()),
                 "cbc:ID" if parent == "cac:OrderReference" => {
                     self.order_reference = Some(text.to_string());
+                }
+                "cbc:SalesOrderID" if parent == "cac:OrderReference" => {
+                    self.sales_order_reference = Some(text.to_string());
+                }
+                "cbc:ID" if parent == "cac:ContractDocumentReference" => {
+                    self.contract_reference = Some(text.to_string());
+                }
+                "cbc:ID" if parent == "cac:ProjectReference" => {
+                    self.project_reference = Some(text.to_string());
                 }
                 "cbc:StartDate" if parent == "cac:InvoicePeriod" => {
                     self.invoicing_period_start = Some(text.to_string());
@@ -1066,6 +1115,15 @@ impl ParsedInvoice {
         // BG-19: Direct debit
         if !in_line && leaf == "cbc:ID" && parent == "cac:PaymentMandate" {
             self.direct_debit_mandate_id = Some(text.to_string());
+        }
+        // BT-90: Creditor ID within PaymentMandate/PayerParty/PartyIdentification
+        if !in_line
+            && leaf == "cbc:ID"
+            && parent == "cac:PartyIdentification"
+            && path.iter().any(|p| p == "cac:PayerParty")
+            && path.iter().any(|p| p == "cac:PaymentMandate")
+        {
+            self.direct_debit_creditor_id = Some(text.to_string());
         }
         if !in_line
             && leaf == "cbc:ID"
@@ -1677,10 +1735,11 @@ impl ParsedInvoice {
                 }),
                 direct_debit: if self.direct_debit_mandate_id.is_some()
                     || self.direct_debit_account_id.is_some()
+                    || self.direct_debit_creditor_id.is_some()
                 {
                     Some(DirectDebit {
                         mandate_id: self.direct_debit_mandate_id,
-                        creditor_id: None, // UBL doesn't carry creditor ID in PaymentMandate
+                        creditor_id: self.direct_debit_creditor_id,
                         debited_account_id: self.direct_debit_account_id,
                     })
                 } else {
@@ -1823,7 +1882,11 @@ impl ParsedInvoice {
             tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
+            project_reference: self.project_reference,
+            contract_reference: self.contract_reference,
             order_reference: self.order_reference,
+            sales_order_reference: self.sales_order_reference,
+            buyer_accounting_reference: self.buyer_accounting_reference,
             seller,
             buyer,
             lines,

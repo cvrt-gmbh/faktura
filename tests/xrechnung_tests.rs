@@ -3158,3 +3158,419 @@ fn cii_snapshot() {
     let xml = xrechnung::to_cii_xml(&inv).unwrap();
     insta::assert_snapshot!("cii_domestic_invoice", xml);
 }
+
+// ===== Tax representative exemption (BR-CO-06) =====
+
+#[test]
+fn tax_representative_exempts_seller_vat_requirement() {
+    // Seller has no VAT ID or tax number, but tax representative is set.
+    // This should be valid per BR-CO-06.
+    let inv = InvoiceBuilder::new("TR-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "Foreign Co",
+                AddressBuilder::new("Paris", "75001", "FR").build(),
+            )
+            .electronic_address("EM", "seller@foreign.com")
+            .contact(
+                Some("Jean".into()),
+                Some("+33 1 234".into()),
+                Some("j@foreign.com".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .tax_representative(TaxRepresentative {
+            name: "Steuerberater GmbH".into(),
+            vat_id: "DE987654321".into(),
+            address: AddressBuilder::new("Berlin", "10115", "DE").build(),
+        })
+        .add_line(
+            LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(1000))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+            card_payment: None,
+            direct_debit: None,
+        })
+        .build();
+
+    assert!(inv.is_ok(), "expected OK, got: {:?}", inv.unwrap_err());
+}
+
+// ===== Duplicate line ID validation (BR-CO-04) =====
+
+#[test]
+fn validate_en16931_catches_duplicate_line_ids() {
+    use faktura::core::validate_en16931;
+
+    let inv = InvoiceBuilder::new("DUP-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Item A", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Item B", dec!(2), "C62", dec!(200))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .build()
+        .unwrap();
+
+    let errors = validate_en16931(&inv);
+    assert!(
+        errors.iter().any(|e| e.rule.as_deref() == Some("BR-CO-04")),
+        "expected BR-CO-04 error for duplicate line IDs, got: {:?}",
+        errors
+    );
+}
+
+// ===== ZeroRated e2e test =====
+
+#[test]
+fn zero_rated_invoice_ubl_roundtrip() {
+    let inv = InvoiceBuilder::new("ZR-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .vat_scenario(VatScenario::Mixed)
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max".into()),
+                Some("+49 30 123".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Zero-rated item", dec!(5), "C62", dec!(100))
+                .tax(TaxCategory::ZeroRated, dec!(0))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+            card_payment: None,
+            direct_debit: None,
+        })
+        .build()
+        .unwrap();
+
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+    assert_eq!(parsed.lines[0].tax_category, TaxCategory::ZeroRated);
+    assert_eq!(parsed.lines[0].tax_rate, dec!(0));
+    assert_eq!(parsed.totals.unwrap().vat_total, dec!(0));
+}
+
+// ===== CII buyer Steuernummer roundtrip =====
+
+#[test]
+fn cii_buyer_tax_number_roundtrip() {
+    let inv = InvoiceBuilder::new("BTN-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max".into()),
+                Some("+49 30 123".into()),
+                Some("max@acme.de".into()),
+            )
+            .tax_number("1234567890")
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+            card_payment: None,
+            direct_debit: None,
+        })
+        .build()
+        .unwrap();
+
+    // CII roundtrip
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+    assert_eq!(
+        parsed.seller.tax_number.as_deref(),
+        Some("1234567890"),
+        "seller tax_number should roundtrip through CII"
+    );
+}
+
+// ===== UBL creditor_id roundtrip =====
+
+#[test]
+fn ubl_creditor_id_roundtrip() {
+    let inv = InvoiceBuilder::new("DD-002", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max".into()),
+                Some("+49 30 123".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaDirectDebit,
+            means_text: None,
+            remittance_info: Some("DD-002".into()),
+            credit_transfer: None,
+            card_payment: None,
+            direct_debit: Some(DirectDebit {
+                mandate_id: Some("MANDATE-123".into()),
+                creditor_id: Some("DE98ZZZ09999999999".into()),
+                debited_account_id: Some("DE89370400440532013000".into()),
+            }),
+        })
+        .build()
+        .unwrap();
+
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+    let dd = parsed.payment.unwrap().direct_debit.unwrap();
+    assert_eq!(dd.creditor_id.as_deref(), Some("DE98ZZZ09999999999"));
+    assert_eq!(dd.mandate_id.as_deref(), Some("MANDATE-123"));
+    assert_eq!(
+        dd.debited_account_id.as_deref(),
+        Some("DE89370400440532013000")
+    );
+}
+
+// ===== New BT references roundtrip =====
+
+#[test]
+fn contract_project_sales_order_references_ubl_roundtrip() {
+    let inv = InvoiceBuilder::new("REF-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .contract_reference("CONTRACT-2024-42")
+        .project_reference("PROJECT-ALPHA")
+        .order_reference("PO-2024-100")
+        .sales_order_reference("SO-2024-200")
+        .buyer_accounting_reference("COST-CENTER-99")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max".into()),
+                Some("+49 30 123".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+            card_payment: None,
+            direct_debit: None,
+        })
+        .build()
+        .unwrap();
+
+    // UBL roundtrip
+    let xml = xrechnung::to_ubl_xml(&inv).unwrap();
+    let parsed = xrechnung::from_ubl_xml(&xml).unwrap();
+    assert_eq!(
+        parsed.contract_reference.as_deref(),
+        Some("CONTRACT-2024-42")
+    );
+    assert_eq!(parsed.project_reference.as_deref(), Some("PROJECT-ALPHA"));
+    assert_eq!(parsed.order_reference.as_deref(), Some("PO-2024-100"));
+    assert_eq!(parsed.sales_order_reference.as_deref(), Some("SO-2024-200"));
+    assert_eq!(
+        parsed.buyer_accounting_reference.as_deref(),
+        Some("COST-CENTER-99")
+    );
+}
+
+#[test]
+fn contract_project_sales_order_references_cii_roundtrip() {
+    let inv = InvoiceBuilder::new("REF-002", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .buyer_reference("04011000-12345-03")
+        .contract_reference("CONTRACT-2024-42")
+        .project_reference("PROJECT-ALPHA")
+        .order_reference("PO-2024-100")
+        .sales_order_reference("SO-2024-200")
+        .buyer_accounting_reference("COST-CENTER-99")
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .electronic_address("EM", "seller@acme.de")
+            .contact(
+                Some("Max".into()),
+                Some("+49 30 123".into()),
+                Some("max@acme.de".into()),
+            )
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .electronic_address("EM", "buyer@kunde.de")
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .payment(PaymentInstructions {
+            means_code: PaymentMeansCode::SepaCreditTransfer,
+            means_text: None,
+            remittance_info: None,
+            credit_transfer: Some(CreditTransfer {
+                iban: "DE89370400440532013000".into(),
+                bic: None,
+                account_name: None,
+            }),
+            card_payment: None,
+            direct_debit: None,
+        })
+        .build()
+        .unwrap();
+
+    // CII roundtrip
+    let xml = xrechnung::to_cii_xml(&inv).unwrap();
+    let parsed = xrechnung::from_cii_xml(&xml).unwrap();
+    assert_eq!(
+        parsed.contract_reference.as_deref(),
+        Some("CONTRACT-2024-42")
+    );
+    assert_eq!(parsed.project_reference.as_deref(), Some("PROJECT-ALPHA"));
+    assert_eq!(parsed.order_reference.as_deref(), Some("PO-2024-100"));
+    assert_eq!(parsed.sales_order_reference.as_deref(), Some("SO-2024-200"));
+    assert_eq!(
+        parsed.buyer_accounting_reference.as_deref(),
+        Some("COST-CENTER-99")
+    );
+}

@@ -93,6 +93,18 @@ pub fn to_cii_xml(invoice: &Invoice) -> XmlResult {
         w.text_element("ram:IssuerAssignedID", or)?;
         w.end_element("ram:BuyerOrderReferencedDocument")?;
     }
+    // BT-14: Sales order reference
+    if let Some(sor) = &invoice.sales_order_reference {
+        w.start_element("ram:SellerOrderReferencedDocument")?;
+        w.text_element("ram:IssuerAssignedID", sor)?;
+        w.end_element("ram:SellerOrderReferencedDocument")?;
+    }
+    // BT-12: Contract reference
+    if let Some(cr) = &invoice.contract_reference {
+        w.start_element("ram:ContractReferencedDocument")?;
+        w.text_element("ram:IssuerAssignedID", cr)?;
+        w.end_element("ram:ContractReferencedDocument")?;
+    }
     // BG-3: Preceding invoice references
     for pi in &invoice.preceding_invoices {
         w.start_element("ram:InvoiceReferencedDocument")?;
@@ -120,6 +132,13 @@ pub fn to_cii_xml(invoice: &Invoice) -> XmlResult {
             w.text_element("ram:URIID", uri)?;
         }
         w.end_element("ram:AdditionalReferencedDocument")?;
+    }
+    // BT-11: Project reference
+    if let Some(pr) = &invoice.project_reference {
+        w.start_element("ram:SpecifiedProcuringProject")?;
+        w.text_element("ram:ID", pr)?;
+        w.text_element("ram:Name", "Project reference")?;
+        w.end_element("ram:SpecifiedProcuringProject")?;
     }
     w.end_element("ram:ApplicableHeaderTradeAgreement")?;
 
@@ -341,6 +360,13 @@ pub fn to_cii_xml(invoice: &Invoice) -> XmlResult {
     }
     w.text_element("ram:DuePayableAmount", &format_decimal(totals.amount_due))?;
     w.end_element("ram:SpecifiedTradeSettlementHeaderMonetarySummation")?;
+
+    // BT-19: Buyer accounting reference
+    if let Some(acr) = &invoice.buyer_accounting_reference {
+        w.start_element("ram:ReceivableSpecifiedTradeAccountingAccount")?;
+        w.text_element("ram:ID", acr)?;
+        w.end_element("ram:ReceivableSpecifiedTradeAccountingAccount")?;
+    }
 
     w.end_element("ram:ApplicableHeaderTradeSettlement")?;
     w.end_element("rsm:SupplyChainTradeTransaction")?;
@@ -718,7 +744,11 @@ struct CiiParsed {
     currency_code: Option<String>,
     tax_currency_code: Option<String>,
     buyer_reference: Option<String>,
+    project_reference: Option<String>,
+    contract_reference: Option<String>,
     order_reference: Option<String>,
+    sales_order_reference: Option<String>,
+    buyer_accounting_reference: Option<String>,
     notes: Vec<String>,
     preceding_invoices: Vec<CiiPrecedingInvoice>,
     current_preceding: Option<CiiPrecedingInvoice>,
@@ -934,6 +964,21 @@ impl CiiParsed {
         }
         if leaf == "ram:IssuerAssignedID" && parent == "ram:BuyerOrderReferencedDocument" {
             self.order_reference = Some(text.to_string());
+        }
+        if leaf == "ram:IssuerAssignedID" && parent == "ram:SellerOrderReferencedDocument" {
+            self.sales_order_reference = Some(text.to_string());
+        }
+        if leaf == "ram:IssuerAssignedID" && parent == "ram:ContractReferencedDocument" {
+            self.contract_reference = Some(text.to_string());
+        }
+        if leaf == "ram:ID" && parent == "ram:SpecifiedProcuringProject" {
+            self.project_reference = Some(text.to_string());
+        }
+        if leaf == "ram:ID"
+            && parent == "ram:ReceivableSpecifiedTradeAccountingAccount"
+            && in_settlement
+        {
+            self.buyer_accounting_reference = Some(text.to_string());
         }
         if leaf == "ram:InvoiceCurrencyCode" {
             self.currency_code = Some(text.to_string());
@@ -1724,7 +1769,11 @@ impl CiiParsed {
             tax_currency_code: self.tax_currency_code,
             notes: self.notes,
             buyer_reference: self.buyer_reference,
+            project_reference: self.project_reference,
+            contract_reference: self.contract_reference,
             order_reference: self.order_reference,
+            sales_order_reference: self.sales_order_reference,
+            buyer_accounting_reference: self.buyer_accounting_reference,
             seller,
             buyer,
             payee,

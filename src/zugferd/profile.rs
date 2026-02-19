@@ -285,6 +285,12 @@ fn write_cii_party(w: &mut XmlWriter, party: &Party, element: &str) -> Result<()
         w.end_element("ram:SpecifiedTaxRegistration")?;
     }
 
+    if let Some(tax_number) = &party.tax_number {
+        w.start_element("ram:SpecifiedTaxRegistration")?;
+        w.text_element_with_attrs("ram:ID", tax_number, &[("schemeID", "FC")])?;
+        w.end_element("ram:SpecifiedTaxRegistration")?;
+    }
+
     w.start_element("ram:PostalTradeAddress")?;
     w.text_element("ram:PostcodeCode", &party.address.postal_code)?;
     if let Some(street) = &party.address.street {

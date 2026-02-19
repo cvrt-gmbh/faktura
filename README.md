@@ -128,6 +128,10 @@ The library implements the following business groups and terms from the EN 16931
 | BG-1 | Invoice note | Supported |
 | BG-2 | Process control | Supported |
 | BG-3 | Preceding invoice reference | Supported |
+| — | BT-11 Project reference | Supported |
+| — | BT-12 Contract reference | Supported |
+| — | BT-14 Sales order reference | Supported |
+| — | BT-19 Buyer accounting reference | Supported |
 | BG-4 | Seller | Supported (name, address, contact, VAT ID, tax number, registration ID, trading name, electronic address) |
 | BG-7 | Buyer | Supported (name, address, contact, VAT ID, registration ID, trading name, electronic address) |
 | BG-10 | Payee | Supported (name, identifier, legal registration ID) |
