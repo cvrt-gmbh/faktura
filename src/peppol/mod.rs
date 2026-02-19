@@ -17,7 +17,7 @@ mod eas;
 mod validate;
 
 pub use eas::{EasScheme, eas_scheme_for_country};
-pub use validate::validate_peppol;
+pub use validate::{validate_peppol, validate_peppol_full};
 
 use crate::core::{Invoice, RechnungError};
 

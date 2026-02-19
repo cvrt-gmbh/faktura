@@ -277,9 +277,42 @@ impl InvoiceBuilder {
         self
     }
 
-    /// Build the invoice, calculating totals and running validation.
+    /// Build the invoice, calculating totals and running §14 UStG validation.
     /// Returns all validation errors (not just the first).
     pub fn build(self) -> Result<Invoice, RechnungError> {
+        let invoice = self.build_inner()?;
+
+        let errors = validation::validate_14_ustg(&invoice);
+        if !errors.is_empty() {
+            return Err(errors_to_validation_error(&errors));
+        }
+
+        Ok(invoice)
+    }
+
+    /// Build with full EN 16931 validation (§14 UStG + EN 16931 rules).
+    ///
+    /// Stricter than [`build`] — also checks duplicate line IDs, VAT breakdown
+    /// consistency, decimal precision, and other EN 16931 business rules.
+    pub fn build_strict(self) -> Result<Invoice, RechnungError> {
+        let invoice = self.build_inner()?;
+
+        let mut errors = validation::validate_14_ustg(&invoice);
+        errors.extend(validation::validate_en16931(&invoice));
+        if !errors.is_empty() {
+            return Err(errors_to_validation_error(&errors));
+        }
+
+        Ok(invoice)
+    }
+
+    /// Build without validation — useful for testing or importing external data.
+    pub fn build_unchecked(self) -> Result<Invoice, RechnungError> {
+        self.build_inner()
+    }
+
+    /// Shared invoice construction logic.
+    fn build_inner(self) -> Result<Invoice, RechnungError> {
         let seller = self
             .seller
             .ok_or_else(|| RechnungError::Builder("seller is required".into()))?;
@@ -315,72 +348,9 @@ impl InvoiceBuilder {
             ));
         }
 
-        let mut invoice = Invoice {
-            number: self.number,
-            issue_date: self.issue_date,
-            due_date: self.due_date,
-            type_code: self.type_code,
-            currency_code: self.currency_code,
-            tax_currency_code: self.tax_currency_code,
-            notes: self.notes,
-            buyer_reference: self.buyer_reference,
-            project_reference: self.project_reference,
-            contract_reference: self.contract_reference,
-            order_reference: self.order_reference,
-            sales_order_reference: self.sales_order_reference,
-            buyer_accounting_reference: self.buyer_accounting_reference,
-            seller,
-            buyer,
-            lines: self.lines,
-            vat_scenario: self.vat_scenario,
-            allowances: self.allowances,
-            charges: self.charges,
-            totals: None,
-            payment_terms: self.payment_terms,
-            payment: self.payment,
-            tax_point_date: self.tax_point_date,
-            invoicing_period: self.invoicing_period,
-            payee: self.payee,
-            tax_representative: self.tax_representative,
-            preceding_invoices: self.preceding_invoices,
-            attachments: self.attachments,
-            delivery: self.delivery,
-        };
-
-        // Calculate totals
-        validation::calculate_totals(&mut invoice, self.prepaid);
-
-        // Set tax currency total if provided
-        if let (Some(totals), Some(tax_total)) =
-            (invoice.totals.as_mut(), self.vat_total_in_tax_currency)
-        {
-            totals.vat_total_in_tax_currency = Some(tax_total);
-        }
-
-        // Run §14 UStG validation
-        let errors = validation::validate_14_ustg(&invoice);
-        if !errors.is_empty() {
-            let msg = errors
-                .iter()
-                .map(|e| e.to_string())
-                .collect::<Vec<_>>()
-                .join("; ");
-            return Err(RechnungError::Validation(msg));
-        }
-
-        Ok(invoice)
-    }
-
-    /// Build without validation — useful for testing or importing external data.
-    pub fn build_unchecked(self) -> Result<Invoice, RechnungError> {
-        let seller = self
-            .seller
-            .ok_or_else(|| RechnungError::Builder("seller is required".into()))?;
-        let buyer = self
-            .buyer
-            .ok_or_else(|| RechnungError::Builder("buyer is required".into()))?;
-
         let vat_total_in_tax_currency = self.vat_total_in_tax_currency;
+        let prepaid = self.prepaid;
+
         let mut invoice = Invoice {
             number: self.number,
             issue_date: self.issue_date,
@@ -413,7 +383,7 @@ impl InvoiceBuilder {
             delivery: self.delivery,
         };
 
-        validation::calculate_totals(&mut invoice, self.prepaid);
+        validation::calculate_totals(&mut invoice, prepaid);
 
         if let (Some(totals), Some(tax_total)) =
             (invoice.totals.as_mut(), vat_total_in_tax_currency)
@@ -742,4 +712,13 @@ impl LineItemBuilder {
             invoicing_period: self.invoicing_period,
         }
     }
+}
+
+fn errors_to_validation_error(errors: &[super::error::ValidationError]) -> RechnungError {
+    let msg = errors
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("; ");
+    RechnungError::Validation(msg)
 }

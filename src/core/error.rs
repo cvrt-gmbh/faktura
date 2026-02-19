@@ -14,6 +14,9 @@ pub enum RechnungError {
 
     #[error("arithmetic error: {0}")]
     Arithmetic(String),
+
+    #[error("XML error: {0}")]
+    Xml(String),
 }
 
 /// A single validation error with field path and message.

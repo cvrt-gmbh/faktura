@@ -6,6 +6,17 @@ use rust_decimal::Decimal;
 
 use crate::core::*;
 
+/// Run all validation layers for Peppol BIS 3.0 compliance in one call.
+///
+/// Combines `validate_14_ustg`, `validate_en16931`, and `validate_peppol`
+/// into a single convenience function. Returns all errors found.
+pub fn validate_peppol_full(invoice: &Invoice) -> Vec<ValidationError> {
+    let mut errors = crate::core::validate_14_ustg(invoice);
+    errors.extend(crate::core::validate_en16931(invoice));
+    errors.extend(validate_peppol(invoice));
+    errors
+}
+
 /// Validate an invoice against Peppol BIS Billing 3.0 rules.
 ///
 /// Returns a list of validation errors. An empty list means the invoice

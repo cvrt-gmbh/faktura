@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] - 2026-02-19
+
+### Added
+
+- **xrechnung**: `from_xml()` auto-detects UBL vs CII syntax by peeking at the root element, returns `(Invoice, XmlSyntax)`
+- **core**: `InvoiceBuilder::build_strict()` — builds with full §14 UStG + EN 16931 validation (rejects duplicate line IDs, unknown unit codes, VAT breakdown issues)
+- **core**: `is_known_unit_code()` — validates UN/CEFACT Rec 20 unit codes (85 common codes used in EN 16931 invoicing)
+- **core**: Unit code validation integrated into `validate_en16931()` BR-26 check
+- **core**: `RechnungError::Xml` variant for XML-related errors
+- **peppol**: `validate_peppol_full()` convenience function combining `validate_14_ustg`, `validate_en16931`, and `validate_peppol`
+- **tests**: 8 new tests — `from_xml` auto-detect (3), `build_strict` (2), unit code validation (2), unit code lookup (1)
+
 ## [0.1.9] - 2026-02-19
 
 ### Added

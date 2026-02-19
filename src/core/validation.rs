@@ -820,6 +820,15 @@ pub fn validate_en16931(invoice: &Invoice) -> Vec<ValidationError> {
                 "line quantity unit of measure must not be empty",
                 "BR-26",
             ));
+        } else if !super::units::is_known_unit_code(&line.unit) {
+            errors.push(ValidationError::with_rule(
+                format!("lines[{i}].unit"),
+                format!(
+                    "unit code '{}' is not a known UN/CEFACT Rec 20 code (BT-130)",
+                    line.unit
+                ),
+                "BR-26",
+            ));
         }
     }
 

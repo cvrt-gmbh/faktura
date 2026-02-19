@@ -7,10 +7,12 @@ mod builder;
 mod error;
 mod numbering;
 mod types;
+pub mod units;
 mod validation;
 
 pub use builder::*;
 pub use error::*;
 pub use numbering::*;
 pub use types::*;
+pub use units::is_known_unit_code;
 pub use validation::*;

@@ -27,6 +27,65 @@ pub use cii::{from_cii_xml, to_cii_xml};
 pub use ubl::{from_ubl_xml, to_ubl_xml};
 pub use validate::{validate_xrechnung, validate_xrechnung_full};
 
+use crate::core::{Invoice, RechnungError};
+
+/// The detected XML syntax of an invoice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum XmlSyntax {
+    /// UBL 2.1 (root element `Invoice` or `CreditNote`).
+    Ubl,
+    /// UN/CEFACT CII (root element `CrossIndustryInvoice`).
+    Cii,
+}
+
+/// Parse an invoice from XML, auto-detecting whether it is UBL or CII.
+///
+/// Peeks at the root element to determine the syntax, then delegates to
+/// [`from_ubl_xml`] or [`from_cii_xml`].
+///
+/// ```no_run
+/// use faktura::xrechnung;
+///
+/// let xml = std::fs::read_to_string("invoice.xml").unwrap();
+/// let (invoice, syntax) = xrechnung::from_xml(&xml).unwrap();
+/// println!("Parsed {:?} invoice: {}", syntax, invoice.number);
+/// ```
+pub fn from_xml(xml: &str) -> Result<(Invoice, XmlSyntax), RechnungError> {
+    match detect_syntax(xml) {
+        Some(XmlSyntax::Ubl) => from_ubl_xml(xml).map(|inv| (inv, XmlSyntax::Ubl)),
+        Some(XmlSyntax::Cii) => from_cii_xml(xml).map(|inv| (inv, XmlSyntax::Cii)),
+        None => Err(RechnungError::Xml(
+            "cannot detect XML syntax: root element is neither UBL (Invoice/CreditNote) nor CII (CrossIndustryInvoice)".into(),
+        )),
+    }
+}
+
+/// Detect the XML syntax by scanning for the root element name.
+fn detect_syntax(xml: &str) -> Option<XmlSyntax> {
+    use quick_xml::Reader;
+    use quick_xml::events::Event;
+
+    let mut reader = Reader::from_str(xml);
+    let mut buf = Vec::new();
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(ref e)) | Ok(Event::Empty(ref e)) => {
+                let local = e.local_name();
+                let name = std::str::from_utf8(local.as_ref()).unwrap_or("");
+                return match name {
+                    "Invoice" | "CreditNote" => Some(XmlSyntax::Ubl),
+                    "CrossIndustryInvoice" => Some(XmlSyntax::Cii),
+                    _ => None,
+                };
+            }
+            Ok(Event::Eof) => return None,
+            Err(_) => return None,
+            _ => {}
+        }
+        buf.clear();
+    }
+}
+
 /// XRechnung 3.0 specification identifier (BT-24).
 pub const XRECHNUNG_CUSTOMIZATION_ID: &str =
     "urn:cen.eu:en16931:2017#compliant#urn:xeinkauf.de:kosit:xrechnung_3.0";

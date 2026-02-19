@@ -3574,3 +3574,140 @@ fn contract_project_sales_order_references_cii_roundtrip() {
         Some("COST-CENTER-99")
     );
 }
+
+// ---------- from_xml() auto-detect ----------
+
+#[test]
+fn from_xml_auto_detects_ubl() {
+    let inv = xrechnung_invoice();
+    let ubl_xml = xrechnung::to_ubl_xml(&inv).unwrap();
+    let (parsed, syntax) = xrechnung::from_xml(&ubl_xml).unwrap();
+    assert_eq!(syntax, xrechnung::XmlSyntax::Ubl);
+    assert_eq!(parsed.number, inv.number);
+}
+
+#[test]
+fn from_xml_auto_detects_cii() {
+    let inv = xrechnung_invoice();
+    let cii_xml = xrechnung::to_cii_xml(&inv).unwrap();
+    let (parsed, syntax) = xrechnung::from_xml(&cii_xml).unwrap();
+    assert_eq!(syntax, xrechnung::XmlSyntax::Cii);
+    assert_eq!(parsed.number, inv.number);
+}
+
+#[test]
+fn from_xml_rejects_unknown_root() {
+    let xml = r#"<?xml version="1.0"?><SomeOtherDocument/>"#;
+    let result = xrechnung::from_xml(xml);
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("cannot detect"));
+}
+
+// ---------- build_strict() ----------
+
+#[test]
+fn build_strict_passes_valid_invoice() {
+    let inv = InvoiceBuilder::new("STRICT-001", date(2024, 6, 15))
+        .due_date(date(2024, 7, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Beratung", dec!(10), "HUR", dec!(150))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .build_strict();
+
+    assert!(inv.is_ok(), "build_strict should pass for valid invoice");
+}
+
+#[test]
+fn build_strict_rejects_duplicate_line_ids() {
+    let result = InvoiceBuilder::new("STRICT-002", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Item A", dec!(1), "C62", dec!(100))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Item B", dec!(2), "C62", dec!(200))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .build_strict();
+
+    assert!(result.is_err(), "build_strict should reject duplicate line IDs");
+    assert!(result.unwrap_err().to_string().contains("duplicate"));
+}
+
+// ---------- unit code validation ----------
+
+#[test]
+fn build_strict_rejects_unknown_unit_code() {
+    let result = InvoiceBuilder::new("UNIT-001", date(2024, 6, 15))
+        .tax_point_date(date(2024, 6, 15))
+        .seller(
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .vat_id("DE123456789")
+            .build(),
+        )
+        .buyer(
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
+        )
+        .add_line(
+            LineItemBuilder::new("1", "Widget", dec!(5), "PIECE", dec!(10))
+                .tax(TaxCategory::StandardRate, dec!(19))
+                .build(),
+        )
+        .build_strict();
+
+    assert!(result.is_err(), "build_strict should reject unknown unit code");
+    assert!(result.unwrap_err().to_string().contains("PIECE"));
+}
+
+#[test]
+fn known_unit_codes_pass_validation() {
+    assert!(faktura::core::is_known_unit_code("C62"));
+    assert!(faktura::core::is_known_unit_code("HUR"));
+    assert!(faktura::core::is_known_unit_code("KGM"));
+    assert!(!faktura::core::is_known_unit_code("INVALID"));
+    assert!(!faktura::core::is_known_unit_code(""));
+}

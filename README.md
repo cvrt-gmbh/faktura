@@ -86,11 +86,23 @@ The builder pattern (`InvoiceBuilder`, `PartyBuilder`, `LineItemBuilder`) auto-c
 
 ### Validation
 
-Three levels of validation:
+Three levels of validation, plus convenience roll-ups:
 
 - **`validate_14_ustg()`** — German §14 UStG mandatory fields
-- **`validate_en16931()`** — EN 16931 business rules (BR-01 through BR-65, category-specific rules)
+- **`validate_en16931()`** — EN 16931 business rules (BR-01 through BR-65, unit codes, category-specific rules)
 - **`validate_arithmetic()`** — Totals consistency checks
+- **`validate_xrechnung_full()`** — All of the above + XRechnung BR-DE-* rules in one call
+- **`validate_peppol_full()`** — All of the above + Peppol PEPPOL-EN16931-* rules in one call
+- **`InvoiceBuilder::build_strict()`** — Builder that runs §14 UStG + EN 16931 validation before returning
+
+### XML Parsing
+
+Auto-detect UBL vs CII syntax with `xrechnung::from_xml()`:
+
+```rust
+let (invoice, syntax) = faktura::xrechnung::from_xml(&xml_string).unwrap();
+// syntax is XmlSyntax::Ubl or XmlSyntax::Cii
+```
 
 ### VAT Scenarios
 
