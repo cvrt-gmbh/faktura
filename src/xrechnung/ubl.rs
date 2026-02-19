@@ -1315,9 +1315,7 @@ impl ParsedInvoice {
                 "cbc:ID" if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" => {
                     line.id = Some(text.to_string())
                 }
-                "cbc:Note"
-                    if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" =>
-                {
+                "cbc:Note" if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" => {
                     line.note = Some(text.to_string());
                 }
                 "cbc:InvoicedQuantity" | "cbc:CreditedQuantity" => {

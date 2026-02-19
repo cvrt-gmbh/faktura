@@ -507,7 +507,10 @@ fn write_cii_line(
     w.text_element("ram:ChargeAmount", &format_decimal(line.unit_price))?;
     // BT-149/BT-150: Base quantity
     if let Some(bq) = line.base_quantity {
-        let bq_unit = line.base_quantity_unit.as_deref().unwrap_or(line.unit.as_str());
+        let bq_unit = line
+            .base_quantity_unit
+            .as_deref()
+            .unwrap_or(line.unit.as_str());
         w.text_element_with_attrs(
             "ram:BasisQuantity",
             &format_decimal(bq),
@@ -1053,9 +1056,7 @@ impl CiiParsed {
                 "ram:CityName" => self.seller_city = Some(text.to_string()),
                 "ram:PostcodeCode" => self.seller_postal = Some(text.to_string()),
                 "ram:CountryID" => self.seller_country = Some(text.to_string()),
-                "ram:CountrySubDivisionName" => {
-                    self.seller_subdivision = Some(text.to_string())
-                }
+                "ram:CountrySubDivisionName" => self.seller_subdivision = Some(text.to_string()),
                 _ => {}
             }
         }
@@ -1080,9 +1081,7 @@ impl CiiParsed {
                 "ram:CityName" => self.tax_rep_city = Some(text.to_string()),
                 "ram:PostcodeCode" => self.tax_rep_postal = Some(text.to_string()),
                 "ram:CountryID" => self.tax_rep_country = Some(text.to_string()),
-                "ram:CountrySubDivisionName" => {
-                    self.tax_rep_subdivision = Some(text.to_string())
-                }
+                "ram:CountrySubDivisionName" => self.tax_rep_subdivision = Some(text.to_string()),
                 _ => {}
             }
         }
@@ -1099,9 +1098,7 @@ impl CiiParsed {
                 "ram:ID" if parent == "ram:SpecifiedLegalOrganization" => {
                     self.buyer_registration_id = Some(text.to_string());
                 }
-                "ram:TradingBusinessName" => {
-                    self.buyer_trading_name = Some(text.to_string())
-                }
+                "ram:TradingBusinessName" => self.buyer_trading_name = Some(text.to_string()),
                 "ram:PersonName" => self.buyer_contact_name = Some(text.to_string()),
                 "ram:CompleteNumber" => self.buyer_contact_phone = Some(text.to_string()),
                 "ram:URIID" if parent == "ram:EmailURIUniversalCommunication" => {
@@ -1116,9 +1113,7 @@ impl CiiParsed {
                 "ram:CityName" => self.buyer_city = Some(text.to_string()),
                 "ram:PostcodeCode" => self.buyer_postal = Some(text.to_string()),
                 "ram:CountryID" => self.buyer_country = Some(text.to_string()),
-                "ram:CountrySubDivisionName" => {
-                    self.buyer_subdivision = Some(text.to_string())
-                }
+                "ram:CountrySubDivisionName" => self.buyer_subdivision = Some(text.to_string()),
                 _ => {}
             }
         }
@@ -1308,9 +1303,9 @@ impl CiiParsed {
                         // BT-127: Line note
                         "ram:Content"
                             if parent == "ram:IncludedNote"
-                                && path.iter().any(|p| {
-                                    p == "ram:AssociatedDocumentLineDocument"
-                                }) =>
+                                && path
+                                    .iter()
+                                    .any(|p| p == "ram:AssociatedDocumentLineDocument") =>
                         {
                             line.note = Some(text.to_string());
                         }
