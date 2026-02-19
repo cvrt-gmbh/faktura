@@ -417,6 +417,7 @@ pub enum PaymentMeansCode {
 }
 
 impl PaymentMeansCode {
+    /// UNTDID 4461 numeric payment means code.
     pub fn code(&self) -> u16 {
         match self {
             Self::Cash => 10,

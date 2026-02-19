@@ -1,3 +1,6 @@
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+
 //! # faktura
 //!
 //! Comprehensive German e-invoicing library covering the full lifecycle:

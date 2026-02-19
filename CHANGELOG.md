@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] - 2026-02-19
+
+### Added
+
+- **lib**: `#![forbid(unsafe_code)]` — compile-time guarantee of no unsafe code
+- **lib**: `#![warn(missing_docs)]` — all public items now documented
+- **fuzz**: 4 libFuzzer targets — `fuzz_ubl_parse`, `fuzz_cii_parse`, `fuzz_xml_autodetect`, `fuzz_ubl_roundtrip`
+- **fuzz**: Corpus seeded from 86 KoSIT XRechnung test suite XML files
+- **ci**: Fuzz job in GitHub Actions (60s per target on nightly)
+
+### Fixed
+
+- **datev**: `DatevConfig::default()` now uses `expect()` with clear message instead of bare `unwrap()`
+
 ## [0.1.11] - 2026-02-19
 
 ### Added

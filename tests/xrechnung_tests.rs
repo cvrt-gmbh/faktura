@@ -3667,7 +3667,10 @@ fn build_strict_rejects_duplicate_line_ids() {
         )
         .build_strict();
 
-    assert!(result.is_err(), "build_strict should reject duplicate line IDs");
+    assert!(
+        result.is_err(),
+        "build_strict should reject duplicate line IDs"
+    );
     assert!(result.unwrap_err().to_string().contains("duplicate"));
 }
 
@@ -3699,7 +3702,10 @@ fn build_strict_rejects_unknown_unit_code() {
         )
         .build_strict();
 
-    assert!(result.is_err(), "build_strict should reject unknown unit code");
+    assert!(
+        result.is_err(),
+        "build_strict should reject unknown unit code"
+    );
     assert!(result.unwrap_err().to_string().contains("PIECE"));
 }
 

@@ -39,7 +39,8 @@ impl Default for DatevConfig {
         Self {
             consultant_number: 1001,
             client_number: 1,
-            fiscal_year_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            fiscal_year_start: NaiveDate::from_ymd_opt(2024, 1, 1)
+                .expect("2024-01-01 is a valid date"),
             account_length: 4,
             chart: ChartOfAccounts::SKR03,
             default_debitor: 10000,

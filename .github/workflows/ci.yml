@@ -61,3 +61,27 @@ jobs:
         run: cargo doc --all-features --no-deps
         env:
           RUSTDOCFLAGS: "-D warnings"
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+      - name: Seed corpus
+        run: |
+          mkdir -p fuzz/corpus/fuzz_ubl_parse fuzz/corpus/fuzz_cii_parse fuzz/corpus/fuzz_xml_autodetect fuzz/corpus/fuzz_ubl_roundtrip
+          find tests/fixtures/xrechnung-testsuite -name "*_ubl.xml" -exec cp {} fuzz/corpus/fuzz_ubl_parse/ \;
+          find tests/fixtures/xrechnung-testsuite -name "*_ubl.xml" -exec cp {} fuzz/corpus/fuzz_ubl_roundtrip/ \;
+          find tests/fixtures/xrechnung-testsuite -name "*uncefact*" -exec cp {} fuzz/corpus/fuzz_cii_parse/ \;
+          find tests/fixtures/xrechnung-testsuite -name "*.xml" -exec cp {} fuzz/corpus/fuzz_xml_autodetect/ \;
+      - name: Fuzz UBL parser (60s)
+        run: cargo +nightly fuzz run fuzz_ubl_parse -- -max_total_time=60
+      - name: Fuzz CII parser (60s)
+        run: cargo +nightly fuzz run fuzz_cii_parse -- -max_total_time=60
+      - name: Fuzz auto-detect (60s)
+        run: cargo +nightly fuzz run fuzz_xml_autodetect -- -max_total_time=60
+      - name: Fuzz UBL roundtrip (60s)
+        run: cargo +nightly fuzz run fuzz_ubl_roundtrip -- -max_total_time=60

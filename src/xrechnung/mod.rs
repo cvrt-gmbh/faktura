@@ -95,18 +95,26 @@ pub const PEPPOL_PROFILE_ID: &str = "urn:fdc:peppol.eu:2017:poacc:billing:01:1.0
 
 /// UBL 2.1 namespace URIs.
 pub mod ubl_ns {
+    /// UBL Invoice namespace.
     pub const INVOICE: &str = "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2";
+    /// UBL CreditNote namespace.
     pub const CREDIT_NOTE: &str = "urn:oasis:names:specification:ubl:schema:xsd:CreditNote-2";
+    /// Common Aggregate Components namespace.
     pub const CAC: &str =
         "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2";
+    /// Common Basic Components namespace.
     pub const CBC: &str = "urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2";
 }
 
 /// CII namespace URIs.
 pub mod cii_ns {
+    /// CrossIndustryInvoice root namespace.
     pub const RSM: &str = "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100";
+    /// Reusable Aggregate Business Information Entity namespace.
     pub const RAM: &str =
         "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100";
+    /// Qualified Data Type namespace.
     pub const QDT: &str = "urn:un:unece:uncefact:data:standard:QualifiedDataType:100";
+    /// Unqualified Data Type namespace.
     pub const UDT: &str = "urn:un:unece:uncefact:data:standard:UnqualifiedDataType:100";
 }

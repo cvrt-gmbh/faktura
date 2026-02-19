@@ -3,18 +3,23 @@ use thiserror::Error;
 /// Errors that can occur during invoice construction or processing.
 #[derive(Debug, Error)]
 pub enum RechnungError {
+    /// One or more validation rules failed.
     #[error("validation failed: {0}")]
     Validation(String),
 
+    /// Builder encountered invalid or missing configuration.
     #[error("builder error: {0}")]
     Builder(String),
 
+    /// Invoice number sequencing error.
     #[error("numbering error: {0}")]
     Numbering(String),
 
+    /// Invoice totals or arithmetic inconsistency.
     #[error("arithmetic error: {0}")]
     Arithmetic(String),
 
+    /// XML generation or parsing error.
     #[error("XML error: {0}")]
     Xml(String),
 }
@@ -41,6 +46,7 @@ impl std::fmt::Display for ValidationError {
 }
 
 impl ValidationError {
+    /// Create a validation error without a rule ID.
     pub fn new(field: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             field: field.into(),
@@ -49,6 +55,7 @@ impl ValidationError {
         }
     }
 
+    /// Create a validation error with an EN 16931 rule ID.
     pub fn with_rule(
         field: impl Into<String>,
         message: impl Into<String>,

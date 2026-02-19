@@ -471,6 +471,7 @@ impl PartyBuilder {
         self
     }
 
+    /// Consume the builder and return the constructed [`Party`].
     pub fn build(self) -> Party {
         Party {
             name: self.name,
@@ -530,6 +531,7 @@ impl AddressBuilder {
         self
     }
 
+    /// Consume the builder and return the constructed [`Address`].
     pub fn build(self) -> Address {
         Address {
             street: self.street,
@@ -687,6 +689,7 @@ impl LineItemBuilder {
         self
     }
 
+    /// Consume the builder and return the constructed [`LineItem`].
     pub fn build(self) -> LineItem {
         LineItem {
             id: self.id,

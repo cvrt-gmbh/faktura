@@ -5,3 +5,5 @@ Cargo.lock
 .DS_Store
 PRD.md
 /validation/
+fuzz/artifacts/
+fuzz/corpus/

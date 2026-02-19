@@ -5,7 +5,9 @@ use std::fmt;
 /// Error returned when a VAT ID or Steuernummer fails format validation.
 #[derive(Debug, Clone)]
 pub struct VatFormatError {
+    /// The invalid input value.
     pub value: String,
+    /// Why the value failed validation.
     pub reason: String,
 }
 

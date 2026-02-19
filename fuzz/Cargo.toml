@@ -1,0 +1,38 @@
+[package]
+name = "faktura-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.faktura]
+path = ".."
+features = ["all"]
+
+[[bin]]
+name = "fuzz_ubl_parse"
+path = "fuzz_targets/fuzz_ubl_parse.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_cii_parse"
+path = "fuzz_targets/fuzz_cii_parse.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_xml_autodetect"
+path = "fuzz_targets/fuzz_xml_autodetect.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_ubl_roundtrip"
+path = "fuzz_targets/fuzz_ubl_roundtrip.rs"
+doc = false
+
+[workspace]
+members = ["."]

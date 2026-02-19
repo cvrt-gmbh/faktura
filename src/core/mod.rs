@@ -4,8 +4,8 @@
 //! based on the EN 16931 semantic model, with §14 UStG validation.
 
 mod builder;
-pub mod currencies;
 pub mod countries;
+pub mod currencies;
 mod error;
 mod numbering;
 pub mod reason_codes;
