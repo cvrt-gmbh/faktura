@@ -43,10 +43,16 @@ pub struct Invoice {
     pub payment: Option<PaymentInstructions>,
     /// BT-8: Tax point date (Leistungsdatum).
     pub tax_point_date: Option<NaiveDate>,
+    /// BG-13: Delivery information.
+    pub delivery: Option<DeliveryInformation>,
     /// BG-14: Invoicing period.
     pub invoicing_period: Option<Period>,
     /// BG-3: Preceding invoice references (for credit notes / corrections).
     pub preceding_invoices: Vec<PrecedingInvoiceReference>,
+    /// BG-10: Payee party (when different from seller).
+    pub payee: Option<Payee>,
+    /// BG-11: Seller tax representative party.
+    pub tax_representative: Option<TaxRepresentative>,
     /// BG-24: Document attachments.
     pub attachments: Vec<DocumentAttachment>,
 }
@@ -136,11 +142,21 @@ pub struct LineItem {
     pub description: Option<String>,
     /// BT-155: Seller's item identifier.
     pub seller_item_id: Option<String>,
+    /// BT-156: Buyer's item identifier.
+    pub buyer_item_id: Option<String>,
     /// BT-157: Item standard identifier (EAN/GTIN).
     pub standard_item_id: Option<String>,
     /// Calculated line extension amount (quantity * unit_price ± allowances/charges).
     /// Set by `calculate_totals()`.
     pub line_amount: Option<Decimal>,
+    /// BT-127: Invoice line note.
+    pub note: Option<String>,
+    /// BT-149: Item price base quantity.
+    pub base_quantity: Option<Decimal>,
+    /// BT-150: Item price base quantity unit of measure code.
+    pub base_quantity_unit: Option<String>,
+    /// BT-159: Item country of origin.
+    pub origin_country: Option<String>,
     /// BT-160/BT-161: Item attributes (name/value pairs).
     pub attributes: Vec<ItemAttribute>,
     /// BG-26: Line-level invoicing period.
@@ -228,6 +244,8 @@ pub enum InvoiceTypeCode {
     Prepayment,
     /// 326 — Partial invoice.
     Partial,
+    /// Other UNTDID 1001 code value.
+    Other(u16),
 }
 
 impl InvoiceTypeCode {
@@ -239,19 +257,20 @@ impl InvoiceTypeCode {
             Self::Corrected => 384,
             Self::Prepayment => 386,
             Self::Partial => 326,
+            Self::Other(c) => *c,
         }
     }
 
     /// Parse from UNTDID 1001 numeric code.
     pub fn from_code(code: u16) -> Option<Self> {
-        match code {
-            380 => Some(Self::Invoice),
-            381 => Some(Self::CreditNote),
-            384 => Some(Self::Corrected),
-            386 => Some(Self::Prepayment),
-            326 => Some(Self::Partial),
-            _ => None,
-        }
+        Some(match code {
+            380 => Self::Invoice,
+            381 => Self::CreditNote,
+            384 => Self::Corrected,
+            386 => Self::Prepayment,
+            326 => Self::Partial,
+            other => Self::Other(other),
+        })
     }
 }
 
@@ -329,6 +348,10 @@ pub struct PaymentInstructions {
     pub remittance_info: Option<String>,
     /// BG-17: Credit transfer (bank account).
     pub credit_transfer: Option<CreditTransfer>,
+    /// BG-18: Payment card information.
+    pub card_payment: Option<CardPayment>,
+    /// BG-19: Direct debit.
+    pub direct_debit: Option<DirectDebit>,
 }
 
 /// BG-17: Credit transfer / bank account.
@@ -340,6 +363,26 @@ pub struct CreditTransfer {
     pub bic: Option<String>,
     /// BT-85: Account name.
     pub account_name: Option<String>,
+}
+
+/// BG-18: Payment card information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CardPayment {
+    /// BT-87: Payment card account number (last 4–6 digits).
+    pub account_number: String,
+    /// BT-88: Holder of the payment card.
+    pub holder_name: Option<String>,
+}
+
+/// BG-19: Direct debit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectDebit {
+    /// BT-89: Mandate reference identifier.
+    pub mandate_id: Option<String>,
+    /// BT-90: Bank assigned creditor identifier.
+    pub creditor_id: Option<String>,
+    /// BT-91: Debited account identifier (IBAN).
+    pub debited_account_id: Option<String>,
 }
 
 /// Common payment means codes.
@@ -421,6 +464,65 @@ pub struct PrecedingInvoiceReference {
     pub number: String,
     /// BT-26: Preceding invoice issue date.
     pub issue_date: Option<NaiveDate>,
+}
+
+/// BG-13: Delivery information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryInformation {
+    /// BT-72: Actual delivery date (when goods/services were delivered).
+    pub actual_delivery_date: Option<NaiveDate>,
+    /// BG-14: Delivery party (recipient of goods/services).
+    pub delivery_party: Option<DeliveryParty>,
+    /// BG-15: Deliver-to address.
+    pub delivery_address: Option<DeliveryAddress>,
+}
+
+/// BG-14: Delivery party.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryParty {
+    /// BT-70: Delivery party name.
+    pub name: String,
+    /// BT-71: Delivery location identifier (e.g. warehouse code, location ID).
+    pub location_id: Option<String>,
+}
+
+/// BG-15: Deliver-to address.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeliveryAddress {
+    /// BT-75: Street address line 1 (street name and number).
+    pub street: Option<String>,
+    /// BT-76: Street address line 2 (additional address line).
+    pub additional: Option<String>,
+    /// BT-77: City name.
+    pub city: String,
+    /// BT-78: Postal zone (postal code).
+    pub postal_code: String,
+    /// BT-79: Country subdivision (e.g. state, province, Bundesland).
+    pub subdivision: Option<String>,
+    /// BT-80: Country code (ISO 3166-1 alpha-2).
+    pub country_code: String,
+}
+
+/// BG-10: Payee party.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Payee {
+    /// BT-59: Payee name.
+    pub name: String,
+    /// BT-60: Payee identifier.
+    pub identifier: Option<String>,
+    /// BT-61: Payee legal registration identifier.
+    pub legal_registration_id: Option<String>,
+}
+
+/// BG-11: Seller tax representative party.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxRepresentative {
+    /// BT-62: Tax representative name.
+    pub name: String,
+    /// BT-63: Tax representative VAT identifier.
+    pub vat_id: String,
+    /// BG-12: Tax representative postal address.
+    pub address: Address,
 }
 
 /// BG-24: Document attachment.

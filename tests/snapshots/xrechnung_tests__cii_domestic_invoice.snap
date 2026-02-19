@@ -1,6 +1,6 @@
 ---
 source: tests/xrechnung_tests.rs
-assertion_line: 543
+assertion_line: 2291
 expression: xml
 ---
 <?xml version="1.0" encoding="UTF-8"?>
@@ -121,6 +121,7 @@ expression: xml
       </ram:ActualDeliverySupplyChainEvent>
     </ram:ApplicableHeaderTradeDelivery>
     <ram:ApplicableHeaderTradeSettlement>
+      <ram:PaymentReference>RE-2024-001</ram:PaymentReference>
       <ram:InvoiceCurrencyCode>EUR</ram:InvoiceCurrencyCode>
       <ram:SpecifiedTradeSettlementPaymentMeans>
         <ram:TypeCode>58</ram:TypeCode>

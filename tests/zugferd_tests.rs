@@ -55,6 +55,8 @@ fn test_invoice() -> Invoice {
                 bic: Some("COBADEFFXXX".into()),
                 account_name: Some("ACME GmbH".into()),
             }),
+            card_payment: None,
+            direct_debit: None,
         })
         .payment_terms("Zahlbar innerhalb von 30 Tagen")
         .build()

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-02-19
+
+### Added
+
+- **core**: Payee party (BG-10) — `Payee { name, identifier, legal_registration_id }` on `Invoice` with builder support
+- **core**: Seller tax representative (BG-11) — `TaxRepresentative { name, vat_id, address }` on `Invoice` with builder support
+- **core**: Payment means text (BT-82) — `means_text` on `PaymentInstructions`
+- **core**: Line note (BT-127) — `note: Option<String>` on `LineItem`
+- **core**: Base quantity (BT-149/BT-150) — `base_quantity` and `base_quantity_unit` on `LineItem` for price-per-unit pricing
+- **core**: Buyer's item identifier (BT-156) — `buyer_item_id: Option<String>` on `LineItem`
+- **core**: Item country of origin (BT-159) — `origin_country: Option<String>` on `LineItem`
+- **xrechnung**: UBL/CII serialization and parsing for BG-10, BG-11, BG-18, BG-19, BT-82, BT-83, BT-127, BT-149/150, BT-156, BT-157, BT-159
+- **xrechnung**: CII parsing now captures seller subdivision, buyer trading name, buyer contact, buyer registration ID, and standard item ID (GlobalID)
+- **tests**: 31 new roundtrip tests — payee (4), tax representative (4), card payment (4), direct debit (4), payment means text (2), line note (2), base quantity (2), buyer item ID (2), origin country (2), seller subdivision (2), standard item ID CII (1), buyer contact CII (1), snapshot update (1)
+
+## [0.1.7] - 2026-02-19
+
+### Added
+
+- **core**: Card payment (BG-18) — `CardPayment { account_number, holder_name }` on `PaymentInstructions`
+- **core**: Direct debit (BG-19) — `DirectDebit { mandate_id, creditor_id, debited_account_id }` on `PaymentInstructions`
+- **core**: `InvoiceTypeCode::Other(u16)` variant for non-standard UNTDID 1001 codes (e.g. 877)
+- **core**: Delivery information (BG-13/BG-14/BG-15) — `DeliveryInformation`, `DeliveryParty`, `DeliveryAddress` types with full UBL/CII serialization and parsing
+- **xrechnung**: UBL/CII serialization and parsing for line-level allowances/charges (BG-28), price details with gross price (BG-29), and document-level allowances/charges (BG-20/BG-21) roundtrip
+- **xrechnung**: Comprehensive BR-DE-* Schematron validation — 13 new rules: BR-DE-14 (VAT rate), BR-DE-18 (Skonto format), BR-DE-19/20 (IBAN format), BR-DE-22 (unique filenames), BR-DE-23a/23b/24a/24b/25a/25b (payment means group exclusion), BR-DE-26 (preceding invoice for corrections), BR-DE-27 (phone format), BR-DE-28 (email format), BR-DE-30/31 (direct debit fields)
+- **tests**: 16 new tests — delivery party roundtrip (5), line charges/price details (11), and 11 Schematron validation rule tests
+
+### Fixed
+
+- **xrechnung**: UBL `cac:Price` now correctly serializes price discount as `cac:AllowanceCharge` with `BaseAmount` (was incorrectly using `BaseQuantity` for gross price)
+
 ## [0.1.6] - 2026-02-18
 
 ### Added

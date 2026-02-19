@@ -127,25 +127,160 @@ pub fn to_ubl_xml(invoice: &Invoice) -> XmlResult {
     // BG-7: Buyer
     write_ubl_party(&mut w, &invoice.buyer, "cac:AccountingCustomerParty")?;
 
-    // BG-13: Delivery information
-    if invoice.tax_point_date.is_some() || invoice.invoicing_period.is_some() {
+    // BG-10: Payee party
+    if let Some(payee) = &invoice.payee {
+        w.start_element("cac:PayeeParty")?;
+        w.start_element("cac:PartyName")?;
+        w.text_element("cbc:Name", &payee.name)?;
+        w.end_element("cac:PartyName")?;
+        if let Some(id) = &payee.identifier {
+            w.start_element("cac:PartyIdentification")?;
+            w.text_element("cbc:ID", id)?;
+            w.end_element("cac:PartyIdentification")?;
+        }
+        if let Some(reg_id) = &payee.legal_registration_id {
+            w.start_element("cac:PartyLegalEntity")?;
+            w.text_element("cbc:CompanyID", reg_id)?;
+            w.end_element("cac:PartyLegalEntity")?;
+        }
+        w.end_element("cac:PayeeParty")?;
+    }
+
+    // BG-11: Seller tax representative party
+    if let Some(tax_rep) = &invoice.tax_representative {
+        w.start_element("cac:TaxRepresentativeParty")?;
+        w.start_element("cac:PartyName")?;
+        w.text_element("cbc:Name", &tax_rep.name)?;
+        w.end_element("cac:PartyName")?;
+        w.start_element("cac:PostalAddress")?;
+        if let Some(street) = &tax_rep.address.street {
+            w.text_element("cbc:StreetName", street)?;
+        }
+        if let Some(additional) = &tax_rep.address.additional {
+            w.text_element("cbc:AdditionalStreetName", additional)?;
+        }
+        w.text_element("cbc:CityName", &tax_rep.address.city)?;
+        w.text_element("cbc:PostalZone", &tax_rep.address.postal_code)?;
+        if let Some(sub) = &tax_rep.address.subdivision {
+            w.text_element("cbc:CountrySubentity", sub)?;
+        }
+        w.start_element("cac:Country")?;
+        w.text_element("cbc:IdentificationCode", &tax_rep.address.country_code)?;
+        w.end_element("cac:Country")?;
+        w.end_element("cac:PostalAddress")?;
+        w.start_element("cac:PartyTaxScheme")?;
+        w.text_element("cbc:CompanyID", &tax_rep.vat_id)?;
+        w.start_element("cac:TaxScheme")?;
+        w.text_element("cbc:ID", "VAT")?;
+        w.end_element("cac:TaxScheme")?;
+        w.end_element("cac:PartyTaxScheme")?;
+        w.end_element("cac:TaxRepresentativeParty")?;
+    }
+
+    // BG-13: Delivery information (BT-72 actual delivery date, BG-14/BG-15 party/address)
+    if invoice.delivery.is_some()
+        || invoice.tax_point_date.is_some()
+        || invoice.invoicing_period.is_some()
+    {
         w.start_element("cac:Delivery")?;
-        if let Some(tpd) = &invoice.tax_point_date {
+
+        // BT-72: Actual delivery date
+        if let Some(delivery) = &invoice.delivery {
+            if let Some(actual_delivery_date) = delivery.actual_delivery_date {
+                w.text_element("cbc:ActualDeliveryDate", &actual_delivery_date.to_string())?;
+            }
+
+            // BG-15: Deliver-to party (BT-70 name, BT-71 location_id)
+            if let Some(delivery_party) = &delivery.delivery_party {
+                w.start_element("cac:DeliveryParty")?;
+                w.start_element("cac:PartyName")?;
+                w.text_element("cbc:Name", &delivery_party.name)?;
+                w.end_element("cac:PartyName")?;
+                if let Some(location_id) = &delivery_party.location_id {
+                    w.start_element("cac:PartyIdentification")?;
+                    w.text_element("cbc:ID", location_id)?;
+                    w.end_element("cac:PartyIdentification")?;
+                }
+                w.end_element("cac:DeliveryParty")?;
+            }
+
+            // BG-15: Delivery address (BT-75-80)
+            if let Some(delivery_address) = &delivery.delivery_address {
+                w.start_element("cac:DeliveryLocation")?;
+                w.start_element("cac:Address")?;
+
+                if let Some(street) = &delivery_address.street {
+                    w.text_element("cbc:StreetName", street)?;
+                }
+                if let Some(additional) = &delivery_address.additional {
+                    w.text_element("cbc:AdditionalStreetName", additional)?;
+                }
+
+                w.text_element("cbc:CityName", &delivery_address.city)?;
+                w.text_element("cbc:PostalZone", &delivery_address.postal_code)?;
+
+                if let Some(subdivision) = &delivery_address.subdivision {
+                    w.text_element("cbc:CountrySubentity", subdivision)?;
+                }
+
+                w.start_element("cac:Country")?;
+                w.text_element("cbc:IdentificationCode", &delivery_address.country_code)?;
+                w.end_element("cac:Country")?;
+
+                w.end_element("cac:Address")?;
+                w.end_element("cac:DeliveryLocation")?;
+            }
+        } else if let Some(tpd) = &invoice.tax_point_date {
+            // Fallback for tax_point_date only (legacy behavior)
             w.text_element("cbc:ActualDeliveryDate", &tpd.to_string())?;
         }
+
         w.end_element("cac:Delivery")?;
     }
 
     // BG-16: Payment means
     if let Some(payment) = &invoice.payment {
         w.start_element("cac:PaymentMeans")?;
-        w.text_element(
-            "cbc:PaymentMeansCode",
-            &payment.means_code.code().to_string(),
-        )?;
+        // BT-81: Payment means code, BT-82: Payment means text
+        if let Some(text) = &payment.means_text {
+            w.text_element_with_attrs(
+                "cbc:PaymentMeansCode",
+                &payment.means_code.code().to_string(),
+                &[("name", text.as_str())],
+            )?;
+        } else {
+            w.text_element(
+                "cbc:PaymentMeansCode",
+                &payment.means_code.code().to_string(),
+            )?;
+        }
+        // BT-83: Remittance information
         if let Some(ri) = &payment.remittance_info {
             w.text_element("cbc:PaymentID", ri)?;
         }
+        // BG-18: Card payment
+        if let Some(card) = &payment.card_payment {
+            w.start_element("cac:CardAccount")?;
+            w.text_element("cbc:PrimaryAccountNumberID", &card.account_number)?;
+            if let Some(holder) = &card.holder_name {
+                w.text_element("cbc:HolderName", holder)?;
+            }
+            w.end_element("cac:CardAccount")?;
+        }
+        // BG-19: Direct debit (PaymentMandate)
+        if let Some(dd) = &payment.direct_debit {
+            w.start_element("cac:PaymentMandate")?;
+            if let Some(mandate_id) = &dd.mandate_id {
+                w.text_element("cbc:ID", mandate_id)?;
+            }
+            if let Some(account_id) = &dd.debited_account_id {
+                w.start_element("cac:PayerFinancialAccount")?;
+                w.text_element("cbc:ID", account_id)?;
+                w.end_element("cac:PayerFinancialAccount")?;
+            }
+            w.end_element("cac:PaymentMandate")?;
+        }
+        // BG-17: Credit transfer
         if let Some(ct) = &payment.credit_transfer {
             w.start_element("cac:PayeeFinancialAccount")?;
             w.text_element("cbc:ID", &ct.iban)?;
@@ -367,6 +502,10 @@ fn write_ubl_line(w: &mut XmlWriter, line: &LineItem, currency: &str) -> Result<
     w.start_element("cac:InvoiceLine")?;
     // BT-126: Line ID
     w.text_element("cbc:ID", &line.id)?;
+    // BT-127: Line note
+    if let Some(note) = &line.note {
+        w.text_element("cbc:Note", note)?;
+    }
     // BT-129/130: Quantity with unit
     w.quantity_element("cbc:InvoicedQuantity", line.quantity, &line.unit)?;
     // BT-131: Line extension amount
@@ -402,10 +541,22 @@ fn write_ubl_line(w: &mut XmlWriter, line: &LineItem, currency: &str) -> Result<
         w.text_element("cbc:ID", sid)?;
         w.end_element("cac:SellersItemIdentification")?;
     }
+    // BT-156: Buyer's item identifier
+    if let Some(bid) = &line.buyer_item_id {
+        w.start_element("cac:BuyersItemIdentification")?;
+        w.text_element("cbc:ID", bid)?;
+        w.end_element("cac:BuyersItemIdentification")?;
+    }
     if let Some(std_id) = &line.standard_item_id {
         w.start_element("cac:StandardItemIdentification")?;
         w.text_element_with_attrs("cbc:ID", std_id, &[("schemeID", "0160")])?;
         w.end_element("cac:StandardItemIdentification")?;
+    }
+    // BT-159: Item country of origin
+    if let Some(country) = &line.origin_country {
+        w.start_element("cac:OriginCountry")?;
+        w.text_element("cbc:IdentificationCode", country)?;
+        w.end_element("cac:OriginCountry")?;
     }
     // Line tax category
     w.start_element("cac:ClassifiedTaxCategory")?;
@@ -427,11 +578,24 @@ fn write_ubl_line(w: &mut XmlWriter, line: &LineItem, currency: &str) -> Result<
     }
     w.end_element("cac:Item")?;
 
-    // Price
+    // BG-29: Price details
     w.start_element("cac:Price")?;
     w.amount_element("cbc:PriceAmount", line.unit_price, currency)?;
+    // BT-149/BT-150: Base quantity
+    if let Some(bq) = line.base_quantity {
+        let bq_unit = line.base_quantity_unit.as_deref().unwrap_or(&line.unit);
+        w.quantity_element("cbc:BaseQuantity", bq, bq_unit)?;
+    }
     if let Some(gp) = line.gross_price {
-        w.amount_element("cbc:BaseQuantity", gp, currency)?;
+        // BT-147/BT-148: Price discount as AllowanceCharge inside Price
+        let discount = gp - line.unit_price;
+        if discount > Decimal::ZERO {
+            w.start_element("cac:AllowanceCharge")?;
+            w.text_element("cbc:ChargeIndicator", "false")?;
+            w.amount_element("cbc:Amount", discount, currency)?;
+            w.amount_element("cbc:BaseAmount", gp, currency)?;
+            w.end_element("cac:AllowanceCharge")?;
+        }
     }
     w.end_element("cac:Price")?;
 
@@ -464,6 +628,8 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
                     || name == "cbc:CreditedQuantity"
                     || name == "cbc:TaxAmount"
                     || name == "cbc:EmbeddedDocumentBinaryObject"
+                    || name == "cbc:PaymentMeansCode"
+                    || name == "cbc:BaseQuantity"
                 {
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).unwrap_or("");
@@ -477,6 +643,9 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
                             }
                             "currencyID" => {
                                 invoice.current_currency_id = Some(val.to_string());
+                            }
+                            "name" if name == "cbc:PaymentMeansCode" => {
+                                invoice.payment_means_text = Some(val.to_string());
                             }
                             "mimeCode" => {
                                 if let Some(att) = invoice.current_attachment.as_mut() {
@@ -525,6 +694,25 @@ pub fn from_ubl_xml(xml: &str) -> Result<Invoice, RechnungError> {
                 if ended == "cac:AdditionalDocumentReference" {
                     if let Some(att) = invoice.current_attachment.take() {
                         invoice.attachments.push(att);
+                    }
+                }
+                // When we close a line-level AllowanceCharge, push it
+                if ended == "cac:AllowanceCharge" {
+                    let in_line_ctx = path
+                        .iter()
+                        .any(|p| p == "cac:InvoiceLine" || p == "cac:CreditNoteLine");
+                    let in_price_ctx = path.iter().any(|p| p == "cac:Price");
+                    if in_line_ctx && !in_price_ctx {
+                        if let Some(line) = invoice.current_line.as_mut() {
+                            if let Some(ac) = line.current_ac.take() {
+                                line.allowances_charges.push(ac);
+                            }
+                        }
+                    } else if !in_line_ctx {
+                        // Document-level allowance/charge
+                        if let Some(ac) = invoice.current_doc_ac.take() {
+                            invoice.doc_allowances_charges.push(ac);
+                        }
                     }
                 }
                 // When we close an AdditionalItemProperty, push the attribute
@@ -599,17 +787,44 @@ struct ParsedInvoice {
     buyer_name: Option<String>,
     buyer_trading_name: Option<String>,
     buyer_vat_id: Option<String>,
+    buyer_reg_id: Option<String>,
     buyer_street: Option<String>,
     buyer_additional: Option<String>,
     buyer_city: Option<String>,
     buyer_postal: Option<String>,
     buyer_country: Option<String>,
     buyer_subdivision: Option<String>,
+    buyer_contact_name: Option<String>,
+    buyer_contact_phone: Option<String>,
+    buyer_contact_email: Option<String>,
     buyer_endpoint_scheme: Option<String>,
     buyer_endpoint_value: Option<String>,
 
+    // Payee (BG-10)
+    payee_name: Option<String>,
+    payee_identifier: Option<String>,
+    payee_legal_reg_id: Option<String>,
+
+    // Tax representative (BG-11)
+    tax_rep_name: Option<String>,
+    tax_rep_vat_id: Option<String>,
+    tax_rep_street: Option<String>,
+    tax_rep_additional: Option<String>,
+    tax_rep_city: Option<String>,
+    tax_rep_postal: Option<String>,
+    tax_rep_country: Option<String>,
+    tax_rep_subdivision: Option<String>,
+
     // Payment
     payment_means_code: Option<String>,
+    payment_means_text: Option<String>,
+    payment_remittance_info: Option<String>,
+    // BG-18: Card payment
+    card_account_number: Option<String>,
+    card_holder_name: Option<String>,
+    // BG-19: Direct debit
+    direct_debit_mandate_id: Option<String>,
+    direct_debit_account_id: Option<String>,
     payment_iban: Option<String>,
     payment_bic: Option<String>,
     payment_account_name: Option<String>,
@@ -635,6 +850,21 @@ struct ParsedInvoice {
 
     tax_total_in_tax_currency: Option<String>,
 
+    // Document-level allowances/charges
+    doc_allowances_charges: Vec<ParsedAllowanceCharge>,
+    current_doc_ac: Option<ParsedAllowanceCharge>,
+
+    // Delivery information (BG-13/BG-14/BG-15)
+    delivery_actual_date: Option<String>,
+    delivery_party_name: Option<String>,
+    delivery_party_location_id: Option<String>,
+    delivery_street: Option<String>,
+    delivery_additional: Option<String>,
+    delivery_city: Option<String>,
+    delivery_postal: Option<String>,
+    delivery_country: Option<String>,
+    delivery_subdivision: Option<String>,
+
     // Temp parsing state
     current_scheme_id: Option<String>,
     current_unit_code: Option<String>,
@@ -655,20 +885,40 @@ struct ParsedVatBreakdown {
 #[derive(Default, Clone)]
 struct ParsedLine {
     id: Option<String>,
+    note: Option<String>,
     quantity: Option<String>,
     unit: Option<String>,
     line_amount: Option<String>,
     item_name: Option<String>,
     description: Option<String>,
     seller_item_id: Option<String>,
+    buyer_item_id: Option<String>,
     standard_item_id: Option<String>,
     unit_price: Option<String>,
+    gross_price: Option<String>,
+    base_quantity: Option<String>,
+    base_quantity_unit: Option<String>,
     tax_category: Option<String>,
     tax_rate: Option<String>,
+    origin_country: Option<String>,
     attributes: Vec<(String, String)>,
     current_attr_name: Option<String>,
     invoicing_period_start: Option<String>,
     invoicing_period_end: Option<String>,
+    allowances_charges: Vec<ParsedAllowanceCharge>,
+    current_ac: Option<ParsedAllowanceCharge>,
+}
+
+#[derive(Default, Clone)]
+struct ParsedAllowanceCharge {
+    is_charge: Option<String>,
+    amount: Option<String>,
+    base_amount: Option<String>,
+    reason: Option<String>,
+    reason_code: Option<String>,
+    tax_category: Option<String>,
+    tax_rate: Option<String>,
+    percentage: Option<String>,
 }
 
 #[derive(Default, Clone)]
@@ -726,6 +976,7 @@ impl ParsedInvoice {
         let in_billing_ref = path.iter().any(|p| p == "cac:BillingReference");
         let in_additional_doc_ref =
             path.iter().any(|p| p == "cac:AdditionalDocumentReference") && !in_line;
+        let in_delivery = path.iter().any(|p| p == "cac:Delivery");
 
         // Invoice-level fields
         if !in_seller
@@ -802,6 +1053,27 @@ impl ParsedInvoice {
         if !in_line && parent == "cac:PaymentMeans" && leaf == "cbc:PaymentMeansCode" {
             self.payment_means_code = Some(text.to_string());
         }
+        if !in_line && parent == "cac:PaymentMeans" && leaf == "cbc:PaymentID" {
+            self.payment_remittance_info = Some(text.to_string());
+        }
+        // BG-18: Card payment
+        if !in_line && leaf == "cbc:PrimaryAccountNumberID" && parent == "cac:CardAccount" {
+            self.card_account_number = Some(text.to_string());
+        }
+        if !in_line && leaf == "cbc:HolderName" && parent == "cac:CardAccount" {
+            self.card_holder_name = Some(text.to_string());
+        }
+        // BG-19: Direct debit
+        if !in_line && leaf == "cbc:ID" && parent == "cac:PaymentMandate" {
+            self.direct_debit_mandate_id = Some(text.to_string());
+        }
+        if !in_line
+            && leaf == "cbc:ID"
+            && parent == "cac:PayerFinancialAccount"
+            && path.iter().any(|p| p == "cac:PaymentMandate")
+        {
+            self.direct_debit_account_id = Some(text.to_string());
+        }
         if !in_line && leaf == "cbc:ID" && parent == "cac:PayeeFinancialAccount" {
             self.payment_iban = Some(text.to_string());
         }
@@ -813,6 +1085,43 @@ impl ParsedInvoice {
         }
         if !in_line && leaf == "cbc:Note" && parent == "cac:PaymentTerms" {
             self.payment_terms = Some(text.to_string());
+        }
+
+        // BG-13/BG-14/BG-15: Delivery information
+        if in_delivery && !in_line {
+            match leaf {
+                "cbc:ActualDeliveryDate" => self.delivery_actual_date = Some(text.to_string()),
+                "cbc:Name" if parent == "cac:PartyName" && grandparent == "cac:DeliveryParty" => {
+                    self.delivery_party_name = Some(text.to_string());
+                }
+                "cbc:ID"
+                    if parent == "cac:PartyIdentification"
+                        && grandparent == "cac:DeliveryParty" =>
+                {
+                    self.delivery_party_location_id = Some(text.to_string());
+                }
+                "cbc:StreetName" if parent == "cac:Address" => {
+                    self.delivery_street = Some(text.to_string());
+                }
+                "cbc:AdditionalStreetName" if parent == "cac:Address" => {
+                    self.delivery_additional = Some(text.to_string());
+                }
+                "cbc:CityName" if parent == "cac:Address" => {
+                    self.delivery_city = Some(text.to_string());
+                }
+                "cbc:PostalZone" if parent == "cac:Address" => {
+                    self.delivery_postal = Some(text.to_string());
+                }
+                "cbc:CountrySubentity" if parent == "cac:Address" => {
+                    self.delivery_subdivision = Some(text.to_string());
+                }
+                "cbc:IdentificationCode"
+                    if parent == "cac:Country" && grandparent == "cac:Address" =>
+                {
+                    self.delivery_country = Some(text.to_string());
+                }
+                _ => {}
+            }
         }
 
         // Totals
@@ -934,6 +1243,9 @@ impl ParsedInvoice {
                 "cbc:RegistrationName" if parent == "cac:PartyLegalEntity" => {
                     self.buyer_name = Some(text.to_string());
                 }
+                "cbc:CompanyID" if parent == "cac:PartyLegalEntity" => {
+                    self.buyer_reg_id = Some(text.to_string());
+                }
                 "cbc:Name" if parent == "cac:PartyName" => {
                     self.buyer_trading_name = Some(text.to_string());
                 }
@@ -948,6 +1260,50 @@ impl ParsedInvoice {
                     self.buyer_country = Some(text.to_string());
                 }
                 "cbc:CountrySubentity" => self.buyer_subdivision = Some(text.to_string()),
+                "cbc:Name" if parent == "cac:Contact" => {
+                    self.buyer_contact_name = Some(text.to_string());
+                }
+                "cbc:Telephone" => self.buyer_contact_phone = Some(text.to_string()),
+                "cbc:ElectronicMail" => self.buyer_contact_email = Some(text.to_string()),
+                _ => {}
+            }
+        }
+
+        // BG-10: Payee party
+        let in_payee = path.iter().any(|p| p == "cac:PayeeParty");
+        if in_payee && !in_seller && !in_buyer && !in_line {
+            match leaf {
+                "cbc:Name" if parent == "cac:PartyName" => {
+                    self.payee_name = Some(text.to_string());
+                }
+                "cbc:ID" if parent == "cac:PartyIdentification" => {
+                    self.payee_identifier = Some(text.to_string());
+                }
+                "cbc:CompanyID" if parent == "cac:PartyLegalEntity" => {
+                    self.payee_legal_reg_id = Some(text.to_string());
+                }
+                _ => {}
+            }
+        }
+
+        // BG-11: Tax representative party
+        let in_tax_rep = path.iter().any(|p| p == "cac:TaxRepresentativeParty");
+        if in_tax_rep && !in_seller && !in_buyer && !in_line {
+            match leaf {
+                "cbc:Name" if parent == "cac:PartyName" => {
+                    self.tax_rep_name = Some(text.to_string());
+                }
+                "cbc:CompanyID" if parent == "cac:PartyTaxScheme" => {
+                    self.tax_rep_vat_id = Some(text.to_string());
+                }
+                "cbc:StreetName" => self.tax_rep_street = Some(text.to_string()),
+                "cbc:AdditionalStreetName" => self.tax_rep_additional = Some(text.to_string()),
+                "cbc:CityName" => self.tax_rep_city = Some(text.to_string()),
+                "cbc:PostalZone" => self.tax_rep_postal = Some(text.to_string()),
+                "cbc:IdentificationCode" if parent == "cac:Country" => {
+                    self.tax_rep_country = Some(text.to_string());
+                }
+                "cbc:CountrySubentity" => self.tax_rep_subdivision = Some(text.to_string()),
                 _ => {}
             }
         }
@@ -958,6 +1314,11 @@ impl ParsedInvoice {
             match leaf {
                 "cbc:ID" if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" => {
                     line.id = Some(text.to_string())
+                }
+                "cbc:Note"
+                    if parent == "cac:InvoiceLine" || parent == "cac:CreditNoteLine" =>
+                {
+                    line.note = Some(text.to_string());
                 }
                 "cbc:InvoicedQuantity" | "cbc:CreditedQuantity" => {
                     line.quantity = Some(text.to_string());
@@ -975,10 +1336,26 @@ impl ParsedInvoice {
                 "cbc:ID" if parent == "cac:SellersItemIdentification" => {
                     line.seller_item_id = Some(text.to_string());
                 }
+                "cbc:ID" if parent == "cac:BuyersItemIdentification" => {
+                    line.buyer_item_id = Some(text.to_string());
+                }
                 "cbc:ID" if parent == "cac:StandardItemIdentification" => {
                     line.standard_item_id = Some(text.to_string());
                 }
+                "cbc:IdentificationCode" if parent == "cac:OriginCountry" => {
+                    line.origin_country = Some(text.to_string());
+                }
                 "cbc:PriceAmount" => line.unit_price = Some(text.to_string()),
+                "cbc:BaseQuantity" if path.iter().any(|p| p == "cac:Price") => {
+                    line.base_quantity = Some(text.to_string());
+                    line.base_quantity_unit = self.current_unit_code.take();
+                }
+                // BG-29: gross price from Price/AllowanceCharge/BaseAmount
+                "cbc:BaseAmount"
+                    if path.iter().any(|p| p == "cac:Price") && parent == "cac:AllowanceCharge" =>
+                {
+                    line.gross_price = Some(text.to_string());
+                }
                 "cbc:ID" if parent == "cac:ClassifiedTaxCategory" => {
                     line.tax_category = Some(text.to_string());
                 }
@@ -1002,7 +1379,91 @@ impl ParsedInvoice {
                 }
                 _ => {}
             }
+
+            // BG-27/BG-28: Line-level AllowanceCharge (not inside Price)
+            let in_price = path.iter().any(|p| p == "cac:Price");
+            if path.iter().any(|p| p == "cac:AllowanceCharge") && !in_price {
+                let ac = line.current_ac.get_or_insert_with(Default::default);
+                match leaf {
+                    "cbc:ChargeIndicator" => ac.is_charge = Some(text.to_string()),
+                    "cbc:Amount" if parent == "cac:AllowanceCharge" => {
+                        ac.amount = Some(text.to_string())
+                    }
+                    "cbc:BaseAmount" => ac.base_amount = Some(text.to_string()),
+                    "cbc:AllowanceChargeReason" => ac.reason = Some(text.to_string()),
+                    "cbc:AllowanceChargeReasonCode" => ac.reason_code = Some(text.to_string()),
+                    "cbc:MultiplierFactorNumeric" => ac.percentage = Some(text.to_string()),
+                    "cbc:ID" if parent == "cac:TaxCategory" => {
+                        ac.tax_category = Some(text.to_string())
+                    }
+                    "cbc:Percent" if parent == "cac:TaxCategory" => {
+                        ac.tax_rate = Some(text.to_string())
+                    }
+                    _ => {}
+                }
+            }
         }
+
+        // BG-20/BG-21: Document-level AllowanceCharge
+        if !in_seller
+            && !in_buyer
+            && !in_line
+            && !in_billing_ref
+            && !in_additional_doc_ref
+            && path.iter().any(|p| p == "cac:AllowanceCharge")
+        {
+            let ac = self.current_doc_ac.get_or_insert_with(Default::default);
+            match leaf {
+                "cbc:ChargeIndicator" => ac.is_charge = Some(text.to_string()),
+                "cbc:Amount" if parent == "cac:AllowanceCharge" => {
+                    ac.amount = Some(text.to_string())
+                }
+                "cbc:BaseAmount" => ac.base_amount = Some(text.to_string()),
+                "cbc:AllowanceChargeReason" => ac.reason = Some(text.to_string()),
+                "cbc:AllowanceChargeReasonCode" => ac.reason_code = Some(text.to_string()),
+                "cbc:MultiplierFactorNumeric" => ac.percentage = Some(text.to_string()),
+                "cbc:ID" if parent == "cac:TaxCategory" => ac.tax_category = Some(text.to_string()),
+                "cbc:Percent" if parent == "cac:TaxCategory" => {
+                    ac.tax_rate = Some(text.to_string())
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn convert_allowance_charges(
+        parsed: Vec<ParsedAllowanceCharge>,
+        parse_decimal: &dyn Fn(&str) -> Result<Decimal, RechnungError>,
+    ) -> Result<(Vec<AllowanceCharge>, Vec<AllowanceCharge>), RechnungError> {
+        let mut allowances = Vec::new();
+        let mut charges = Vec::new();
+        for pac in parsed {
+            let is_charge = pac.is_charge.as_deref() == Some("true");
+            let amount = parse_decimal(pac.amount.as_deref().unwrap_or("0"))?;
+            let ac = AllowanceCharge {
+                is_charge,
+                amount,
+                percentage: pac
+                    .percentage
+                    .as_deref()
+                    .and_then(|s| parse_decimal(s).ok()),
+                base_amount: pac
+                    .base_amount
+                    .as_deref()
+                    .and_then(|s| parse_decimal(s).ok()),
+                tax_category: TaxCategory::from_code(pac.tax_category.as_deref().unwrap_or("S"))
+                    .unwrap_or(TaxCategory::StandardRate),
+                tax_rate: parse_decimal(pac.tax_rate.as_deref().unwrap_or("0"))?,
+                reason: pac.reason,
+                reason_code: pac.reason_code,
+            };
+            if is_charge {
+                charges.push(ac);
+            } else {
+                allowances.push(ac);
+            }
+        }
+        Ok((allowances, charges))
     }
 
     fn into_invoice(self) -> Result<Invoice, RechnungError> {
@@ -1072,7 +1533,7 @@ impl ParsedInvoice {
             name: self.buyer_name.unwrap_or_default(),
             vat_id: self.buyer_vat_id,
             tax_number: None,
-            registration_id: None,
+            registration_id: self.buyer_reg_id,
             trading_name: self.buyer_trading_name,
             address: Address {
                 street: self.buyer_street,
@@ -1082,7 +1543,18 @@ impl ParsedInvoice {
                 country_code: self.buyer_country.unwrap_or_default(),
                 subdivision: self.buyer_subdivision,
             },
-            contact: None,
+            contact: if self.buyer_contact_name.is_some()
+                || self.buyer_contact_phone.is_some()
+                || self.buyer_contact_email.is_some()
+            {
+                Some(Contact {
+                    name: self.buyer_contact_name,
+                    phone: self.buyer_contact_phone,
+                    email: self.buyer_contact_email,
+                })
+            } else {
+                None
+            },
             electronic_address: match (self.buyer_endpoint_scheme, self.buyer_endpoint_value) {
                 (Some(s), Some(v)) => Some(ElectronicAddress {
                     scheme: s,
@@ -1126,21 +1598,38 @@ impl ParsedInvoice {
                 _ => None,
             };
 
+            let gross_price = pl
+                .gross_price
+                .as_deref()
+                .and_then(|s| parse_decimal(s).ok());
+            let (line_allowances, line_charges) =
+                Self::convert_allowance_charges(pl.allowances_charges, &parse_decimal)?;
+
+            let base_quantity = pl
+                .base_quantity
+                .as_deref()
+                .and_then(|s| parse_decimal(s).ok());
+
             lines.push(LineItem {
                 id: pl.id.unwrap_or_default(),
                 quantity: qty,
                 unit: pl.unit.unwrap_or_else(|| "C62".to_string()),
                 unit_price: price,
-                gross_price: None,
-                allowances: Vec::new(),
-                charges: Vec::new(),
+                gross_price,
+                allowances: line_allowances,
+                charges: line_charges,
                 tax_category: tax_cat,
                 tax_rate,
                 item_name: pl.item_name.unwrap_or_default(),
                 description: pl.description,
                 seller_item_id: pl.seller_item_id,
+                buyer_item_id: pl.buyer_item_id,
                 standard_item_id: pl.standard_item_id,
                 line_amount,
+                note: pl.note,
+                base_quantity,
+                base_quantity_unit: pl.base_quantity_unit,
+                origin_country: pl.origin_country,
                 attributes,
                 invoicing_period: line_period,
             });
@@ -1160,7 +1649,11 @@ impl ParsedInvoice {
             });
         }
 
-        let payment = if self.payment_means_code.is_some() || self.payment_iban.is_some() {
+        let payment = if self.payment_means_code.is_some()
+            || self.payment_iban.is_some()
+            || self.card_account_number.is_some()
+            || self.direct_debit_mandate_id.is_some()
+        {
             let code: u16 = self
                 .payment_means_code
                 .as_deref()
@@ -1169,13 +1662,28 @@ impl ParsedInvoice {
                 .unwrap_or(58);
             Some(PaymentInstructions {
                 means_code: PaymentMeansCode::from_code(code),
-                means_text: None,
-                remittance_info: None,
+                means_text: self.payment_means_text,
+                remittance_info: self.payment_remittance_info,
                 credit_transfer: if self.payment_iban.is_some() {
                     Some(CreditTransfer {
                         iban: self.payment_iban.unwrap_or_default(),
                         bic: self.payment_bic,
                         account_name: self.payment_account_name,
+                    })
+                } else {
+                    None
+                },
+                card_payment: self.card_account_number.map(|num| CardPayment {
+                    account_number: num,
+                    holder_name: self.card_holder_name,
+                }),
+                direct_debit: if self.direct_debit_mandate_id.is_some()
+                    || self.direct_debit_account_id.is_some()
+                {
+                    Some(DirectDebit {
+                        mandate_id: self.direct_debit_mandate_id,
+                        creditor_id: None, // UBL doesn't carry creditor ID in PaymentMandate
+                        debited_account_id: self.direct_debit_account_id,
                     })
                 } else {
                     None
@@ -1241,6 +1749,72 @@ impl ParsedInvoice {
             _ => None,
         };
 
+        let (doc_allowances, doc_charges) =
+            Self::convert_allowance_charges(self.doc_allowances_charges, &parse_decimal)?;
+
+        // Build delivery information from parsed fields (BG-13/BG-14/BG-15)
+        let delivery = {
+            let actual_delivery_date = self
+                .delivery_actual_date
+                .as_deref()
+                .and_then(|d| parse_date(d).ok());
+
+            let delivery_party = self.delivery_party_name.as_ref().map(|name| DeliveryParty {
+                name: name.clone(),
+                location_id: self.delivery_party_location_id.clone(),
+            });
+
+            let delivery_address = match (&self.delivery_city, &self.delivery_country) {
+                (Some(city), Some(country)) => Some(DeliveryAddress {
+                    street: self.delivery_street.clone(),
+                    additional: self.delivery_additional.clone(),
+                    city: city.clone(),
+                    postal_code: self.delivery_postal.clone().unwrap_or_default(),
+                    subdivision: self.delivery_subdivision.clone(),
+                    country_code: country.clone(),
+                }),
+                _ => None,
+            };
+
+            // Only construct DeliveryInformation if at least one field is present
+            if actual_delivery_date.is_some()
+                || delivery_party.is_some()
+                || delivery_address.is_some()
+            {
+                Some(DeliveryInformation {
+                    actual_delivery_date,
+                    delivery_party,
+                    delivery_address,
+                })
+            } else {
+                None
+            }
+        };
+
+        let payee = self.payee_name.map(|name| Payee {
+            name,
+            identifier: self.payee_identifier,
+            legal_registration_id: self.payee_legal_reg_id,
+        });
+
+        let tax_representative =
+            if let (Some(name), Some(vat_id)) = (self.tax_rep_name, self.tax_rep_vat_id) {
+                Some(TaxRepresentative {
+                    name,
+                    vat_id,
+                    address: Address {
+                        street: self.tax_rep_street,
+                        additional: self.tax_rep_additional,
+                        city: self.tax_rep_city.unwrap_or_default(),
+                        postal_code: self.tax_rep_postal.unwrap_or_default(),
+                        country_code: self.tax_rep_country.unwrap_or_default(),
+                        subdivision: self.tax_rep_subdivision,
+                    },
+                })
+            } else {
+                None
+            };
+
         Ok(Invoice {
             number: self.number.unwrap_or_default(),
             issue_date,
@@ -1256,8 +1830,8 @@ impl ParsedInvoice {
             buyer,
             lines,
             vat_scenario: VatScenario::Domestic, // Cannot be determined from XML alone
-            allowances: Vec::new(),
-            charges: Vec::new(),
+            allowances: doc_allowances,
+            charges: doc_charges,
             totals,
             payment_terms: self.payment_terms,
             payment,
@@ -1266,8 +1840,11 @@ impl ParsedInvoice {
                 .as_deref()
                 .and_then(|d| parse_date(d).ok()),
             invoicing_period,
+            payee,
+            tax_representative,
             preceding_invoices,
             attachments,
+            delivery,
         })
     }
 }

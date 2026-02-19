@@ -41,6 +41,8 @@ fn main() {
                 bic: Some("COBADEFFXXX".into()),
                 account_name: Some("ACME GmbH".into()),
             }),
+            card_payment: None,
+            direct_debit: None,
         })
         .build()
         .expect("invoice should be valid");

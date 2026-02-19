@@ -45,9 +45,12 @@ pub struct InvoiceBuilder {
     payment: Option<PaymentInstructions>,
     tax_point_date: Option<NaiveDate>,
     invoicing_period: Option<Period>,
+    delivery: Option<DeliveryInformation>,
     prepaid: Decimal,
     preceding_invoices: Vec<PrecedingInvoiceReference>,
     attachments: Vec<DocumentAttachment>,
+    payee: Option<Payee>,
+    tax_representative: Option<TaxRepresentative>,
 }
 
 impl InvoiceBuilder {
@@ -74,9 +77,12 @@ impl InvoiceBuilder {
             payment: None,
             tax_point_date: None,
             invoicing_period: None,
+            delivery: None,
             prepaid: Decimal::ZERO,
             preceding_invoices: Vec::new(),
             attachments: Vec::new(),
+            payee: None,
+            tax_representative: None,
         }
     }
 
@@ -221,6 +227,24 @@ impl InvoiceBuilder {
         self
     }
 
+    /// Set delivery information (BG-13).
+    pub fn delivery(mut self, delivery: DeliveryInformation) -> Self {
+        self.delivery = Some(delivery);
+        self
+    }
+
+    /// Set the payee party (BG-10), when different from the seller.
+    pub fn payee(mut self, payee: Payee) -> Self {
+        self.payee = Some(payee);
+        self
+    }
+
+    /// Set the seller tax representative party (BG-11).
+    pub fn tax_representative(mut self, tax_rep: TaxRepresentative) -> Self {
+        self.tax_representative = Some(tax_rep);
+        self
+    }
+
     /// Build the invoice, calculating totals and running validation.
     /// Returns all validation errors (not just the first).
     pub fn build(self) -> Result<Invoice, RechnungError> {
@@ -280,8 +304,11 @@ impl InvoiceBuilder {
             payment: self.payment,
             tax_point_date: self.tax_point_date,
             invoicing_period: self.invoicing_period,
+            payee: self.payee,
+            tax_representative: self.tax_representative,
             preceding_invoices: self.preceding_invoices,
             attachments: self.attachments,
+            delivery: self.delivery,
         };
 
         // Calculate totals
@@ -339,8 +366,11 @@ impl InvoiceBuilder {
             payment: self.payment,
             tax_point_date: self.tax_point_date,
             invoicing_period: self.invoicing_period,
+            payee: self.payee,
+            tax_representative: self.tax_representative,
             preceding_invoices: self.preceding_invoices,
             attachments: self.attachments,
+            delivery: self.delivery,
         };
 
         validation::calculate_totals(&mut invoice, self.prepaid);
@@ -516,7 +546,12 @@ pub struct LineItemBuilder {
     tax_rate: Decimal,
     description: Option<String>,
     seller_item_id: Option<String>,
+    buyer_item_id: Option<String>,
     standard_item_id: Option<String>,
+    note: Option<String>,
+    base_quantity: Option<Decimal>,
+    base_quantity_unit: Option<String>,
+    origin_country: Option<String>,
     attributes: Vec<ItemAttribute>,
     invoicing_period: Option<Period>,
 }
@@ -546,7 +581,12 @@ impl LineItemBuilder {
             tax_rate: Decimal::new(19, 0),
             description: None,
             seller_item_id: None,
+            buyer_item_id: None,
             standard_item_id: None,
+            note: None,
+            base_quantity: None,
+            base_quantity_unit: None,
+            origin_country: None,
             attributes: Vec::new(),
             invoicing_period: None,
         }
@@ -581,6 +621,32 @@ impl LineItemBuilder {
     /// Set the standard item identifier (BT-157), typically a GTIN/EAN.
     pub fn standard_item_id(mut self, id: impl Into<String>) -> Self {
         self.standard_item_id = Some(id.into());
+        self
+    }
+
+    /// Set the buyer's item identifier (BT-156).
+    pub fn buyer_item_id(mut self, id: impl Into<String>) -> Self {
+        self.buyer_item_id = Some(id.into());
+        self
+    }
+
+    /// Set the invoice line note (BT-127).
+    pub fn note(mut self, note: impl Into<String>) -> Self {
+        self.note = Some(note.into());
+        self
+    }
+
+    /// Set the base quantity (BT-149) and optionally the base quantity unit (BT-150).
+    /// Use when the price refers to a different quantity than 1 (e.g. price per 100 units).
+    pub fn base_quantity(mut self, qty: Decimal, unit: Option<String>) -> Self {
+        self.base_quantity = Some(qty);
+        self.base_quantity_unit = unit;
+        self
+    }
+
+    /// Set the item country of origin (BT-159), ISO 3166-1 alpha-2 code.
+    pub fn origin_country(mut self, code: impl Into<String>) -> Self {
+        self.origin_country = Some(code.into());
         self
     }
 
@@ -625,8 +691,13 @@ impl LineItemBuilder {
             item_name: self.item_name,
             description: self.description,
             seller_item_id: self.seller_item_id,
+            buyer_item_id: self.buyer_item_id,
             standard_item_id: self.standard_item_id,
             line_amount: None,
+            note: self.note,
+            base_quantity: self.base_quantity,
+            base_quantity_unit: self.base_quantity_unit,
+            origin_country: self.origin_country,
             attributes: self.attributes,
             invoicing_period: self.invoicing_period,
         }

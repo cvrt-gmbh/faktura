@@ -45,6 +45,8 @@ fn peppol_invoice() -> Invoice {
                 bic: None,
                 account_name: None,
             }),
+            card_payment: None,
+            direct_debit: None,
         })
         .add_line(
             LineItemBuilder::new("1", "Consulting services", dec!(10), "HUR", dec!(150))
@@ -312,6 +314,8 @@ fn peppol_credit_note() -> Invoice {
                 bic: None,
                 account_name: None,
             }),
+            card_payment: None,
+            direct_debit: None,
         })
         .add_line(
             LineItemBuilder::new("1", "Refund for consulting", dec!(5), "HUR", dec!(150))

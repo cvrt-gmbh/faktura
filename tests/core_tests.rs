@@ -60,6 +60,8 @@ fn domestic_invoice_full() {
                 bic: Some("COBADEFFXXX".into()),
                 account_name: Some("ACME GmbH".into()),
             }),
+            card_payment: None,
+            direct_debit: None,
         })
         .payment_terms("Zahlbar innerhalb von 30 Tagen")
         .tax_point_date(date(2024, 6, 15))

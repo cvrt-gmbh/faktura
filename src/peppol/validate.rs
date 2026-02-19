@@ -73,6 +73,13 @@ pub fn validate_peppol(invoice: &Invoice) -> Vec<ValidationError> {
         | InvoiceTypeCode::Corrected
         | InvoiceTypeCode::Prepayment
         | InvoiceTypeCode::Partial => {}
+        InvoiceTypeCode::Other(code) => {
+            errors.push(ValidationError::with_rule(
+                "type_code",
+                format!("Peppol does not support invoice type code {}", code),
+                "PEPPOL-EN16931-P0100",
+            ));
+        }
     }
 
     // PEPPOL-EN16931-P0112: Type codes 326/384 only when both parties are German
