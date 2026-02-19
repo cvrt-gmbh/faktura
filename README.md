@@ -119,6 +119,35 @@ cargo run --features all --example peppol_invoice
 cargo run --features all --example validation
 ```
 
+## EN 16931 Coverage
+
+The library implements the following business groups and terms from the EN 16931 semantic model:
+
+| Group | Description | Status |
+|-------|-------------|--------|
+| BG-1 | Invoice note | Supported |
+| BG-2 | Process control | Supported |
+| BG-3 | Preceding invoice reference | Supported |
+| BG-4 | Seller | Supported (name, address, contact, VAT ID, tax number, registration ID, trading name, electronic address) |
+| BG-7 | Buyer | Supported (name, address, contact, VAT ID, registration ID, trading name, electronic address) |
+| BG-10 | Payee | Supported (name, identifier, legal registration ID) |
+| BG-11 | Seller tax representative | Supported (name, VAT ID, address) |
+| BG-13 | Delivery information | Supported (actual delivery date, delivery party, delivery address) |
+| BG-14 | Invoicing period | Supported |
+| BG-16 | Payment instructions | Supported (means code, means text, remittance info) |
+| BG-17 | Credit transfer | Supported (IBAN, BIC, account name) |
+| BG-18 | Card payment | Supported (account number, holder name) |
+| BG-19 | Direct debit | Supported (mandate ID, debited account, creditor ID) |
+| BG-20/21 | Document allowances/charges | Supported |
+| BG-22 | Total amounts | Supported |
+| BG-23 | VAT breakdown | Supported |
+| BG-24 | Attachments | Supported (embedded base64 or external URI) |
+| BG-25 | Invoice line | Supported (all standard fields) |
+| BG-26 | Line invoicing period | Supported |
+| BG-27/28 | Line allowances/charges | Supported |
+| BG-29 | Price details | Supported (net price, gross price, base quantity) |
+| BG-31 | Item information | Supported (name, description, seller/buyer/standard ID, attributes, origin country) |
+
 ## Standards Compliance
 
 - [EN 16931](https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_PROJECT:60602) — European electronic invoicing
