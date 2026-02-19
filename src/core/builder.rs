@@ -292,7 +292,7 @@ impl InvoiceBuilder {
 
     /// Build with full EN 16931 validation (§14 UStG + EN 16931 rules).
     ///
-    /// Stricter than [`build`] — also checks duplicate line IDs, VAT breakdown
+    /// Stricter than [`Self::build`] — also checks duplicate line IDs, VAT breakdown
     /// consistency, decimal precision, and other EN 16931 business rules.
     pub fn build_strict(self) -> Result<Invoice, RechnungError> {
         let invoice = self.build_inner()?;
