@@ -1799,7 +1799,15 @@ impl CiiParsed {
             tax_point_date: self
                 .tax_point_date
                 .as_deref()
-                .and_then(|d| parse_cii_date(d).ok()),
+                .and_then(|d| parse_cii_date(d).ok())
+                .or_else(|| {
+                    // BT-7 fallback: In CII, tax_point_date is often encoded as
+                    // ActualDeliverySupplyChainEvent/OccurrenceDateTime (BT-72).
+                    // When no explicit TaxPointDate exists, use the delivery date.
+                    self.delivery_actual_date
+                        .as_deref()
+                        .and_then(|d| parse_cii_date(d).ok())
+                }),
             invoicing_period,
             preceding_invoices,
             attachments,
