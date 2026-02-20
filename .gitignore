@@ -10,3 +10,5 @@ fuzz/corpus/
 PRD.md
 roadmap.md
 *.proptest-regressions
+tests/real_invoice_tests.rs
+tests/datev_pdf_extraction_tests.rs

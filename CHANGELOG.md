@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-02-20
+
+### Fixed
+
+- **validation**: BR-CO-17 VAT amount tolerance widened from ±0.01 to ±0.02 — real-world invoices with many line items accumulate per-line rounding differences that exceed 1 cent
+- **validation**: BR-CO-09 German VAT ID validation now strips whitespace before checking digit count — DATEV exports and other systems sometimes include spaces (e.g. `DE 123 456 789`)
+- **parser**: CII parser now populates `tax_point_date` (BT-7) from `ActualDeliverySupplyChainEvent` (BT-72) as fallback, fixing BR-CO-03 failures on ZUGFeRD/Factur-X invoices
+- **units**: Added `LS` (Lump sum) to known UN/CEFACT Rec 20 unit codes (now 88 codes)
+
+### Added
+
+- **test**: 21 edge case tests covering non-EUR currency, Skonto BR-DE-18, exempt VAT, XML special characters, credit notes, percentage allowances, rounding, SmallInvoice, ZUGFeRD credit note, seller/standard item IDs, multiple preceding refs, minimal invoice, delivery CII roundtrip, unicode addresses
+
 ## [0.2.0] - 2026-02-20
 
 ### Added

@@ -101,7 +101,7 @@ Code list validation (built-in, no external files needed):
 |-----------|----------|-------|
 | ISO 4217 | `is_known_currency_code()` | 44 common currencies |
 | ISO 3166-1 | `is_known_country_code()` | All 249 alpha-2 codes |
-| UN/CEFACT Rec 20 | `is_known_unit_code()` | 85 common unit codes |
+| UN/CEFACT Rec 20 | `is_known_unit_code()` | 88 common unit codes |
 | UNTDID 5189 | `is_known_allowance_reason()` | 19 allowance reason codes |
 | UNTDID 7161 | `is_known_charge_reason()` | 17 charge reason codes |
 
