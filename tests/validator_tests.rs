@@ -101,7 +101,10 @@ fn validate_xml(xml: &str, label: &str) {
                 &xml[..2000.min(xml.len())]
             );
         }
-        panic!("[{label}] Validation FAILED (HTTP {status}):\n{body}\n\nFull XML:\n{}", &xml[..2000.min(xml.len())]);
+        panic!(
+            "[{label}] Validation FAILED (HTTP {status}):\n{body}\n\nFull XML:\n{}",
+            &xml[..2000.min(xml.len())]
+        );
     }
 
     eprintln!("[{label}] ✓ Valid (HTTP {status})");

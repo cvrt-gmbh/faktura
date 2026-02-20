@@ -484,6 +484,7 @@ fn core_types_are_send_and_sync() {
 
 /// Process invoices concurrently — each thread builds, serializes, and validates.
 #[test]
+#[cfg(feature = "xrechnung")]
 fn concurrent_invoice_processing() {
     let handles: Vec<_> = (0..8)
         .map(|i| {
@@ -514,7 +515,10 @@ fn concurrent_invoice_processing() {
                     .unwrap();
 
                 let errors = validate_14_ustg(&inv);
-                assert!(errors.is_empty(), "thread {i} validation failed: {errors:?}");
+                assert!(
+                    errors.is_empty(),
+                    "thread {i} validation failed: {errors:?}"
+                );
 
                 let xml = faktura::xrechnung::to_ubl_xml(&inv).unwrap();
                 let (parsed, _) = faktura::xrechnung::from_xml(&xml).unwrap();

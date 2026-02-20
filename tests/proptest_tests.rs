@@ -202,11 +202,11 @@ proptest! {
 #[test]
 fn unicode_seller_buyer_names() {
     let scenarios = [
-        ("日本語会社", "東京株式会社"),             // CJK
-        ("Ünternehmen GmbH", "Kundé & Söhne"),   // Umlauts
-        ("شركة عربية", "عميل عربي"),               // RTL Arabic
-        ("Compañía S.L.", "José García"),          // Spanish
-        ("Ça va Cie", "François Müller"),          // French + combining
+        ("日本語会社", "東京株式会社"),        // CJK
+        ("Ünternehmen GmbH", "Kundé & Söhne"), // Umlauts
+        ("شركة عربية", "عميل عربي"),           // RTL Arabic
+        ("Compañía S.L.", "José García"),      // Spanish
+        ("Ça va Cie", "François Müller"),      // French + combining
     ];
 
     for (seller_name, buyer_name) in scenarios {
@@ -246,14 +246,26 @@ fn unicode_seller_buyer_names() {
         // UBL roundtrip
         let ubl = faktura::xrechnung::to_ubl_xml(&inv).unwrap();
         let parsed = faktura::xrechnung::from_ubl_xml(&ubl).unwrap();
-        assert_eq!(parsed.seller.name, seller_name, "UBL seller name mismatch for {seller_name}");
-        assert_eq!(parsed.buyer.name, buyer_name, "UBL buyer name mismatch for {buyer_name}");
+        assert_eq!(
+            parsed.seller.name, seller_name,
+            "UBL seller name mismatch for {seller_name}"
+        );
+        assert_eq!(
+            parsed.buyer.name, buyer_name,
+            "UBL buyer name mismatch for {buyer_name}"
+        );
 
         // CII roundtrip
         let cii = faktura::xrechnung::to_cii_xml(&inv).unwrap();
         let parsed = faktura::xrechnung::from_cii_xml(&cii).unwrap();
-        assert_eq!(parsed.seller.name, seller_name, "CII seller name mismatch for {seller_name}");
-        assert_eq!(parsed.buyer.name, buyer_name, "CII buyer name mismatch for {buyer_name}");
+        assert_eq!(
+            parsed.seller.name, seller_name,
+            "CII seller name mismatch for {seller_name}"
+        );
+        assert_eq!(
+            parsed.buyer.name, buyer_name,
+            "CII buyer name mismatch for {buyer_name}"
+        );
     }
 }
 
@@ -292,9 +304,15 @@ fn many_line_items() {
 
     for i in 1..=100 {
         builder = builder.add_line(
-            LineItemBuilder::new(format!("{i}"), format!("Item {i}"), dec!(1), "C62", dec!(10))
-                .tax(TaxCategory::StandardRate, dec!(19))
-                .build(),
+            LineItemBuilder::new(
+                format!("{i}"),
+                format!("Item {i}"),
+                dec!(1),
+                "C62",
+                dec!(10),
+            )
+            .tax(TaxCategory::StandardRate, dec!(19))
+            .build(),
         );
     }
 
@@ -362,7 +380,10 @@ fn large_decimal_values() {
 
     let ubl = faktura::xrechnung::to_ubl_xml(&inv).unwrap();
     let parsed = faktura::xrechnung::from_ubl_xml(&ubl).unwrap();
-    assert_eq!(parsed.totals.as_ref().unwrap().gross_total, dec!(1189999.99));
+    assert_eq!(
+        parsed.totals.as_ref().unwrap().gross_total,
+        dec!(1189999.99)
+    );
 }
 
 #[test]
@@ -498,12 +519,20 @@ fn all_invoice_type_codes_roundtrip() {
         // UBL roundtrip
         let ubl = faktura::xrechnung::to_ubl_xml(&inv).unwrap();
         let parsed = faktura::xrechnung::from_ubl_xml(&ubl).unwrap();
-        assert_eq!(parsed.type_code, type_code, "UBL type code mismatch for {:?}", type_code);
+        assert_eq!(
+            parsed.type_code, type_code,
+            "UBL type code mismatch for {:?}",
+            type_code
+        );
 
         // CII roundtrip
         let cii = faktura::xrechnung::to_cii_xml(&inv).unwrap();
         let parsed = faktura::xrechnung::from_cii_xml(&cii).unwrap();
-        assert_eq!(parsed.type_code, type_code, "CII type code mismatch for {:?}", type_code);
+        assert_eq!(
+            parsed.type_code, type_code,
+            "CII type code mismatch for {:?}",
+            type_code
+        );
     }
 }
 

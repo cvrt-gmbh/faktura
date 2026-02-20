@@ -174,7 +174,8 @@ fn bench_validate_full(c: &mut Criterion) {
 
 fn bench_zugferd_embed_extract(c: &mut Criterion) {
     let invoice = build_10_line_invoice();
-    let xml = faktura::zugferd::to_xml(&invoice, faktura::zugferd::ZugferdProfile::EN16931).unwrap();
+    let xml =
+        faktura::zugferd::to_xml(&invoice, faktura::zugferd::ZugferdProfile::EN16931).unwrap();
     // Use a minimal valid PDF structure for embedding
     let pdf_bytes = include_bytes!("../tests/fixtures/zugferd-pdfs/MustangBeispiel20221026.pdf");
     let profile = faktura::zugferd::ZugferdProfile::EN16931;
@@ -203,7 +204,12 @@ fn bench_datev_export(c: &mut Criterion) {
         .build();
 
     c.bench_function("datev_extf_100_invoices", |b| {
-        b.iter(|| black_box(faktura::datev::to_extf(black_box(&invoices), black_box(&config))));
+        b.iter(|| {
+            black_box(faktura::datev::to_extf(
+                black_box(&invoices),
+                black_box(&config),
+            ))
+        });
     });
 }
 

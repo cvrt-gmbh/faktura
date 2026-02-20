@@ -7,12 +7,18 @@ fn main() {
     println!("=== Builder Error ===");
     let result = InvoiceBuilder::new("", NaiveDate::from_ymd_opt(2024, 6, 15).unwrap())
         .seller(
-            PartyBuilder::new("ACME GmbH", AddressBuilder::new("Berlin", "10115", "DE").build())
-                .build(),
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .build(),
         )
         .buyer(
-            PartyBuilder::new("Kunde AG", AddressBuilder::new("München", "80331", "DE").build())
-                .build(),
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
         )
         .add_line(
             LineItemBuilder::new("1", "Consulting", dec!(10), "HUR", dec!(150))
@@ -37,12 +43,18 @@ fn main() {
     let invoice = InvoiceBuilder::new("RE-2024-001", NaiveDate::from_ymd_opt(2024, 6, 15).unwrap())
         // Missing seller VAT ID, missing tax_point_date, missing delivery date
         .seller(
-            PartyBuilder::new("ACME GmbH", AddressBuilder::new("Berlin", "10115", "DE").build())
-                .build(),
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .build(),
         )
         .buyer(
-            PartyBuilder::new("Kunde AG", AddressBuilder::new("München", "80331", "DE").build())
-                .build(),
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
         )
         .add_line(
             LineItemBuilder::new("1", "Consulting", dec!(10), "HUR", dec!(150))
@@ -62,12 +74,18 @@ fn main() {
     println!("\n=== build_strict() ===");
     let result = InvoiceBuilder::new("RE-2024-002", NaiveDate::from_ymd_opt(2024, 6, 15).unwrap())
         .seller(
-            PartyBuilder::new("ACME GmbH", AddressBuilder::new("Berlin", "10115", "DE").build())
-                .build(),
+            PartyBuilder::new(
+                "ACME GmbH",
+                AddressBuilder::new("Berlin", "10115", "DE").build(),
+            )
+            .build(),
         )
         .buyer(
-            PartyBuilder::new("Kunde AG", AddressBuilder::new("München", "80331", "DE").build())
-                .build(),
+            PartyBuilder::new(
+                "Kunde AG",
+                AddressBuilder::new("München", "80331", "DE").build(),
+            )
+            .build(),
         )
         .add_line(
             LineItemBuilder::new("1", "Consulting", dec!(10), "HUR", dec!(150))
