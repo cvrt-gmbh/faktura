@@ -55,6 +55,7 @@ static COMMON_UNIT_CODES: &[&str] = &[
     "LE",  // Lite
     "LM",  // Linear metre
     "LPA", // Litre of pure alcohol
+    "LS",  // Lump sum
     "LTR", // Litre
     "MAW", // Megawatt
     "MBR", // Millibar
