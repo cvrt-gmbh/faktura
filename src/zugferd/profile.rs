@@ -6,6 +6,7 @@ use chrono::NaiveDate;
 
 /// ZUGFeRD / Factur-X conformance profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ZugferdProfile {
     /// Minimal machine-readable data (no line items).
     Minimum,

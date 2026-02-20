@@ -8,6 +8,7 @@ use crate::core::{TaxCategory, VatScenario};
 
 /// Standard German chart of accounts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum ChartOfAccounts {
     /// Standardkontenrahmen 03 (most common for SMBs).
     SKR03,

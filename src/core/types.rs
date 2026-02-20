@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// BG-0: Invoice — the top-level document.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Invoice {
     /// BT-1: Invoice number (unique, gapless within sequence).
     pub number: String,
@@ -67,6 +68,7 @@ pub struct Invoice {
 
 /// BG-4 / BG-7: Party (seller or buyer).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Party {
     /// BT-27 / BT-44: Name.
     pub name: String,
@@ -88,6 +90,7 @@ pub struct Party {
 
 /// BG-5 / BG-8: Postal address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Address {
     /// BT-35 / BT-50: Street + house number.
     pub street: Option<String>,
@@ -125,6 +128,7 @@ pub struct ElectronicAddress {
 
 /// BG-25: Invoice line item.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct LineItem {
     /// BT-126: Line identifier.
     pub id: String,
@@ -173,6 +177,7 @@ pub struct LineItem {
 
 /// UNTDID 5305 — Tax category codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum TaxCategory {
     /// S — Standard rate (7% or 19% in Germany).
     StandardRate,
@@ -222,6 +227,7 @@ impl TaxCategory {
 /// German-specific VAT scenario — determines which validation rules and
 /// required fields apply to the invoice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum VatScenario {
     /// Standard domestic invoice with German VAT.
     Domestic,
@@ -241,6 +247,7 @@ pub enum VatScenario {
 
 /// UNTDID 1001 — Invoice type codes (subset relevant to German invoicing).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum InvoiceTypeCode {
     /// 380 — Commercial invoice.
     Invoice,
@@ -305,6 +312,7 @@ pub struct AllowanceCharge {
 
 /// BG-22: Document totals.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Totals {
     /// BT-106: Sum of all line net amounts.
     pub line_net_total: Decimal,
@@ -395,6 +403,7 @@ pub struct DirectDebit {
 
 /// Common payment means codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum PaymentMeansCode {
     /// 10 — Cash.
     Cash,

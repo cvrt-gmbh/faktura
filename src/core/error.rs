@@ -2,6 +2,7 @@ use thiserror::Error;
 
 /// Errors that can occur during invoice construction or processing.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum RechnungError {
     /// One or more validation rules failed.
     #[error("validation failed: {0}")]

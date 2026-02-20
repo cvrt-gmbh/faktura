@@ -18,6 +18,7 @@ pub struct ViesResult {
 
 /// Error from the VIES API.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub enum ViesError {
     /// Network or HTTP error.
     Network(String),

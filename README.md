@@ -174,6 +174,21 @@ The library implements the following business groups and terms from the EN 16931
 | BG-29 | Price details | Supported (net price, gross price, base quantity) |
 | BG-31 | Item information | Supported (name, description, seller/buyer/standard ID, attributes, origin country) |
 
+## MSRV Policy
+
+The minimum supported Rust version is **1.85** (Rust edition 2024). This is tested in CI.
+
+MSRV bumps are considered a minor breaking change and will only happen in minor version updates (e.g. 0.2.x, 1.1.x), never in patch releases.
+
+## API Stability
+
+All public enums and the core domain model structs (`Invoice`, `Party`, `Address`, `LineItem`, `Totals`) are marked `#[non_exhaustive]`. This means:
+
+- **Enums**: always use a wildcard arm (`_ => ...`) in `match` statements — new variants may be added in minor releases
+- **Structs**: use the provided builders (`InvoiceBuilder`, `PartyBuilder`, `AddressBuilder`, `LineItemBuilder`) instead of struct literals — new fields may be added in minor releases
+
+Semver compliance is checked in CI via `cargo-semver-checks`.
+
 ## Standards Compliance
 
 - [EN 16931](https://standards.cencenelec.eu/dyn/www/f?p=205:110:0::::FSP_PROJECT:60602) — European electronic invoicing

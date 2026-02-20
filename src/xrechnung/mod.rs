@@ -31,6 +31,7 @@ use crate::core::{Invoice, RechnungError};
 
 /// The detected XML syntax of an invoice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum XmlSyntax {
     /// UBL 2.1 (root element `Invoice` or `CreditNote`).
     Ubl,

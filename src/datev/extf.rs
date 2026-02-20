@@ -166,6 +166,7 @@ pub struct DatevRow {
 
 /// Debit/Credit indicator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DebitCredit {
     /// Soll (debit).
     Soll,
