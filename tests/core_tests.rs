@@ -467,3 +467,63 @@ fn numbering_year_rollover() {
     seq.auto_advance(jan_1);
     assert_eq!(seq.next_number(), "RE-2025-001");
 }
+
+// ── Thread Safety ─────────────────────────────────────────────────
+
+/// Compile-time proof that core types are Send + Sync.
+#[test]
+fn core_types_are_send_and_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<Invoice>();
+    assert_send_sync::<Party>();
+    assert_send_sync::<Address>();
+    assert_send_sync::<LineItem>();
+    assert_send_sync::<Totals>();
+    assert_send_sync::<ValidationError>();
+}
+
+/// Process invoices concurrently — each thread builds, serializes, and validates.
+#[test]
+fn concurrent_invoice_processing() {
+    let handles: Vec<_> = (0..8)
+        .map(|i| {
+            std::thread::spawn(move || {
+                let inv = InvoiceBuilder::new(format!("THREAD-{i:03}"), date(2024, 6, 15))
+                    .tax_point_date(date(2024, 6, 15))
+                    .seller(
+                        PartyBuilder::new(
+                            "Seller GmbH",
+                            AddressBuilder::new("Berlin", "10115", "DE").build(),
+                        )
+                        .vat_id("DE123456789")
+                        .build(),
+                    )
+                    .buyer(
+                        PartyBuilder::new(
+                            "Buyer AG",
+                            AddressBuilder::new("München", "80331", "DE").build(),
+                        )
+                        .build(),
+                    )
+                    .add_line(
+                        LineItemBuilder::new("1", "Service", dec!(5), "HUR", dec!(100))
+                            .tax(TaxCategory::StandardRate, dec!(19))
+                            .build(),
+                    )
+                    .build()
+                    .unwrap();
+
+                let errors = validate_14_ustg(&inv);
+                assert!(errors.is_empty(), "thread {i} validation failed: {errors:?}");
+
+                let xml = faktura::xrechnung::to_ubl_xml(&inv).unwrap();
+                let (parsed, _) = faktura::xrechnung::from_xml(&xml).unwrap();
+                assert_eq!(parsed.number, format!("THREAD-{i:03}"));
+            })
+        })
+        .collect();
+
+    for h in handles {
+        h.join().expect("thread panicked");
+    }
+}

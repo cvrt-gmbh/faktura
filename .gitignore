@@ -7,3 +7,5 @@ Cargo.lock
 fuzz/artifacts/
 fuzz/corpus/
 .ralphy/
+PRD.md
+roadmap.md

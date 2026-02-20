@@ -1,6 +1,6 @@
 [package]
 name = "faktura"
-version = "0.1.12"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Comprehensive German e-invoicing library — XRechnung, ZUGFeRD, DATEV, GDPdU, VAT, Peppol"
@@ -80,4 +80,4 @@ required-features = ["xrechnung"]
 [[bench]]
 name = "invoice_bench"
 harness = false
-required-features = ["xrechnung"]
+required-features = ["all"]

@@ -73,6 +73,26 @@ jobs:
       - name: Check semver compliance
         run: cargo semver-checks check-release --default-features
 
+  bench:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Benchmark (PR branch)
+        run: cargo bench --features all -- --save-baseline pr
+      - name: Checkout base branch
+        run: git checkout ${{ github.event.pull_request.base.sha }}
+      - name: Benchmark (base branch)
+        run: cargo bench --features all -- --save-baseline base
+      - name: Compare benchmarks
+        run: |
+          cargo install critcmp
+          critcmp base pr --threshold 15
+
   fuzz:
     runs-on: ubuntu-latest
     steps:

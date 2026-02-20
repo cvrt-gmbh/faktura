@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-20
+
+### Added
+
+- **bench**: 11 criterion benchmarks — build, UBL/CII serialize/parse, ZUGFeRD embed/extract, DATEV EXTF, full validation pipeline, 1000-line stress tests
+- **bench**: `BASELINE.md` with recorded performance numbers and scaling analysis
+- **ci**: Benchmark regression detection on PRs via `critcmp` (15% threshold)
+- **test**: Thread safety proof — `Send + Sync` compile-time check for all core types
+- **test**: Concurrent invoice processing test (8 threads, build + serialize + validate)
+- **test**: 16 property-based tests via `proptest` (UBL/CII roundtrip, arithmetic invariants, mandatory field checks)
+- **test**: 12 edge case tests (Unicode, max-length strings, zero amounts, all payment means, all invoice types, attachments, allowances/charges, multi-currency)
+- **ci**: `cargo-semver-checks` for semver compliance on every push
+- **docs**: `SECURITY.md` — unsafe code policy, dependency audit, panic behavior, vulnerability reporting
+- **docs**: `CONTRIBUTING.md` — dev setup, testing requirements, commit conventions, PR process
+- **docs**: `ARCHITECTURE.md` — module overview, data flow, validation pipeline, design decisions
+- **docs**: `MIGRATION.md` — upgrade guide for `#[non_exhaustive]` changes
+- **example**: `error_handling.rs` — 4 error handling patterns
+
+### Changed
+
+- **api**: `#[non_exhaustive]` on all public enums (10) and core structs (`Invoice`, `Party`, `Address`, `LineItem`, `Totals`)
+- **docs**: README expanded with Limitations, Recipes, MSRV Policy, and API Stability sections
+
+### Fixed
+
+- **bench**: ZUGFeRD embed benchmark uses correct PDF fixture path and 3-arg `embed_in_pdf` signature
+
 ## [0.1.12] - 2026-02-19
 
 ### Added
