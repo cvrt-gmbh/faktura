@@ -1,0 +1,41 @@
+name: External Validator
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # nightly at 03:00 UTC
+  workflow_dispatch: # allow manual trigger
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      validator:
+        image: easybill/e-invoice-validator:latest
+        ports:
+          - 8081:8080
+        options: >-
+          --health-cmd "curl -f http://localhost:8080/health || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Wait for validator
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8081/health > /dev/null 2>&1; then
+              echo "Validator is ready"
+              exit 0
+            fi
+            echo "Waiting for validator... ($i)"
+            sleep 2
+          done
+          echo "Validator failed to start"
+          exit 1
+      - name: Run validator tests
+        run: cargo test --features all --test validator_tests -- --ignored --nocapture
