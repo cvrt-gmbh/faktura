@@ -73,6 +73,10 @@ required-features = ["vat"]
 name = "peppol_invoice"
 required-features = ["peppol"]
 
+[[example]]
+name = "error_handling"
+required-features = ["xrechnung"]
+
 [[bench]]
 name = "invoice_bench"
 harness = false

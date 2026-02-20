@@ -174,6 +174,82 @@ The library implements the following business groups and terms from the EN 16931
 | BG-29 | Price details | Supported (net price, gross price, base quantity) |
 | BG-31 | Item information | Supported (name, description, seller/buyer/standard ID, attributes, origin country) |
 
+## Limitations
+
+- **No built-in Schematron validation** — the library validates against its own rule implementations, not the official XSD/Schematron files. Use the [KoSIT validator](https://github.com/itplr-kosit/validator) or [easybill/e-invoice-validator](https://hub.docker.com/r/easybill/e-invoice-validator) for full Schematron compliance checking.
+- **All-in-memory parsing** — XML and PDF parsing loads the entire document into memory. Not suitable for streaming gigabyte-sized files (but invoices are typically < 1 MB).
+- **VIES requires network** — VAT number validation via the EU VIES API needs an internet connection and an available VIES service. Format-only validation (`validate_vat_format()`) works offline.
+- **German focus** — while the EN 16931 model is European, the validation rules and defaults are optimized for German invoicing (§14 UStG, XRechnung, DATEV).
+
+## Recipes
+
+### Domestic Invoice (Standard 19% VAT)
+
+```rust
+let invoice = InvoiceBuilder::new("RE-2024-001", date)
+    .tax_point_date(date)
+    .seller(PartyBuilder::new("Seller GmbH", address).vat_id("DE123456789").build())
+    .buyer(PartyBuilder::new("Buyer AG", address).build())
+    .add_line(LineItemBuilder::new("1", "Service", dec!(10), "HUR", dec!(150))
+        .tax(TaxCategory::StandardRate, dec!(19)).build())
+    .build().unwrap();
+```
+
+### Credit Note
+
+```rust
+let credit_note = InvoiceBuilder::new("GS-2024-001", date)
+    .type_code(InvoiceTypeCode::CreditNote)
+    .preceding_invoice("RE-2024-001", Some(original_date))
+    // ... seller, buyer, lines as above
+    .build().unwrap();
+```
+
+### Reverse Charge (§13b UStG)
+
+```rust
+let invoice = InvoiceBuilder::new("RE-2024-002", date)
+    .vat_scenario(VatScenario::ReverseCharge)
+    .seller(PartyBuilder::new("EU Seller", address).vat_id("AT123456789").build())
+    .buyer(PartyBuilder::new("DE Buyer", address).vat_id("DE987654321").build())
+    .add_line(LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(1000))
+        .tax(TaxCategory::ReverseCharge, dec!(0)).build())
+    .build().unwrap();
+```
+
+### Kleinunternehmer (§19 UStG)
+
+```rust
+let invoice = InvoiceBuilder::new("RE-2024-003", date)
+    .vat_scenario(VatScenario::Kleinunternehmer)
+    .note("Kein Ausweis von Umsatzsteuer, da Kleinunternehmer gemäß § 19 UStG.")
+    .add_line(LineItemBuilder::new("1", "Service", dec!(1), "C62", dec!(500))
+        .tax(TaxCategory::NotSubjectToVat, dec!(0)).build())
+    // ...
+    .build().unwrap();
+```
+
+### Error Handling
+
+```rust
+// build_strict() validates before returning
+match InvoiceBuilder::new("RE-2024-001", date)
+    .seller(seller).buyer(buyer).add_line(line)
+    .build_strict() {
+    Ok(invoice) => { /* fully valid */ }
+    Err(e) => eprintln!("Invalid invoice: {}", e),
+}
+
+// Or validate manually
+let invoice = builder.build().unwrap();
+let errors = faktura::core::validate_14_ustg(&invoice);
+if !errors.is_empty() {
+    for e in &errors { eprintln!("{}", e); }
+}
+```
+
+See `examples/error_handling.rs` for more detailed error handling patterns.
+
 ## MSRV Policy
 
 The minimum supported Rust version is **1.85** (Rust edition 2024). This is tested in CI.
