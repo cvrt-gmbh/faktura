@@ -598,9 +598,10 @@ fn validate_vat_id_format(vat_id: &str, field: &str, errors: &mut Vec<Validation
     }
 
     // German VAT IDs: DE followed by exactly 9 digits
+    // Strip spaces — DATEV exports and other systems sometimes include them.
     if country_prefix == "DE" {
-        let number_part = &vat_id[2..];
-        if number_part.len() != 9 || !number_part.chars().all(|c| c.is_ascii_digit()) {
+        let digits: String = vat_id[2..].chars().filter(|c| !c.is_whitespace()).collect();
+        if digits.len() != 9 || !digits.chars().all(|c| c.is_ascii_digit()) {
             errors.push(ValidationError::with_rule(
                 field,
                 format!("German VAT ID must be DE followed by exactly 9 digits (e.g. DE123456789), got: '{vat_id}'"),
@@ -723,16 +724,18 @@ pub fn validate_en16931(invoice: &Invoice) -> Vec<ValidationError> {
     // BR-48: Each VAT breakdown shall have a VAT category rate
     // (all guaranteed by VatBreakdown struct)
 
-    // BR-CO-17: VAT category tax amount = taxable_amount * rate / 100 (±1 cent)
+    // BR-CO-17: VAT category tax amount = taxable_amount * rate / 100
+    // Tolerance ±0.02: line-level rounding can accumulate up to 2 cents difference
+    // when many lines are summed per VAT category. KoSIT accepts this tolerance.
     if let Some(ref totals) = invoice.totals {
         for (i, vb) in totals.vat_breakdown.iter().enumerate() {
             let expected = round_half_up(vb.taxable_amount * vb.rate / dec!(100), 2);
             let diff = (vb.tax_amount - expected).abs();
-            if diff > dec!(0.01) {
+            if diff > dec!(0.02) {
                 errors.push(ValidationError::with_rule(
                     format!("totals.vat_breakdown[{i}].tax_amount"),
                     format!(
-                        "VAT amount {} does not match taxable {} × rate {}% = {} (tolerance ±0.01)",
+                        "VAT amount {} does not match taxable {} × rate {}% = {} (tolerance ±0.02)",
                         vb.tax_amount, vb.taxable_amount, vb.rate, expected
                     ),
                     "BR-CO-17",

@@ -181,7 +181,10 @@ fn skonto_valid_format_passes_xrechnung() {
         .iter()
         .filter(|e| e.rule.as_deref() == Some("BR-DE-18"))
         .collect();
-    assert!(skonto_errors.is_empty(), "Valid skonto should pass BR-DE-18");
+    assert!(
+        skonto_errors.is_empty(),
+        "Valid skonto should pass BR-DE-18"
+    );
 }
 
 #[test]
@@ -310,9 +313,15 @@ fn xml_special_characters_roundtrip() {
         .buyer(xr_buyer())
         .buyer_reference("LEITWEG-123")
         .add_line(
-            LineItemBuilder::new("1", "Item with \"quotes\" & <angles>", dec!(1), "C62", dec!(100))
-                .tax(TaxCategory::StandardRate, dec!(19))
-                .build(),
+            LineItemBuilder::new(
+                "1",
+                "Item with \"quotes\" & <angles>",
+                dec!(1),
+                "C62",
+                dec!(100),
+            )
+            .tax(TaxCategory::StandardRate, dec!(19))
+            .build(),
         )
         .payment(sepa_payment())
         .tax_point_date(date(2024, 6, 1))
@@ -511,7 +520,10 @@ fn credit_note_zugferd_xml_roundtrip() {
     let xml = faktura::zugferd::to_xml(&inv, faktura::zugferd::ZugferdProfile::EN16931).unwrap();
     assert!(!xml.is_empty());
     // Should contain type code 381
-    assert!(xml.contains("381"), "ZUGFeRD XML should contain credit note type code 381");
+    assert!(
+        xml.contains("381"),
+        "ZUGFeRD XML should contain credit note type code 381"
+    );
 
     // Parse back via CII parser
     let back = faktura::xrechnung::from_cii_xml(&xml).unwrap();
@@ -645,7 +657,10 @@ fn minimal_invoice_builds_and_validates() {
 
     // §14 UStG validation passes
     let errors = validate_14_ustg(&inv);
-    assert!(errors.is_empty(), "Minimal invoice should pass §14: {errors:?}");
+    assert!(
+        errors.is_empty(),
+        "Minimal invoice should pass §14: {errors:?}"
+    );
 }
 
 // ---- 14. Delivery CII full roundtrip ----

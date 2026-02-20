@@ -1,4 +1,4 @@
-//! Real-world PDF extraction tests — processes 42 DATEV invoice PDFs.
+//! Real-world PDF extraction tests — processes DATEV invoice PDFs.
 //!
 //! These PDFs are CAVORT production invoices exported from the billing system.
 //! Each should contain an embedded Factur-X/ZUGFeRD XML that can be extracted,
@@ -8,26 +8,37 @@
 mod zugferd_extraction {
     use std::path::PathBuf;
 
-    fn pdf_dir() -> PathBuf {
-        PathBuf::from(concat!(
-            "/Users/jh/Downloads/",
-            "BITTE-ENTPACKEN_Buchungsstapel_und_Belegbilder_1326467_20000_20260101_bis_20260131/",
-            "DATEV_Rechnungsausgang_20260101_bis_20260131"
-        ))
+    /// All known DATEV export directories to scan.
+    fn pdf_dirs() -> Vec<PathBuf> {
+        vec![
+            PathBuf::from(concat!(
+                "/Users/jh/Downloads/",
+                "BITTE-ENTPACKEN_Buchungsstapel_und_Belegbilder_1326467_20000_20260101_bis_20260131/",
+                "DATEV_Rechnungsausgang_20260101_bis_20260131"
+            )),
+            PathBuf::from(concat!(
+                "/Users/jh/Downloads/",
+                "BITTE-ENTPACKEN_Buchungsstapel_und_Belegbilder_1326467_20000_20250101_bis_20251231/",
+                "DATEV_Rechnungsausgang_20250101_bis_20251231"
+            )),
+        ]
     }
 
     fn list_pdfs() -> Vec<PathBuf> {
-        let dir = pdf_dir();
-        if !dir.exists() {
-            return vec![];
+        let mut pdfs = Vec::new();
+        for dir in pdf_dirs() {
+            if !dir.exists() {
+                continue;
+            }
+            let mut dir_pdfs: Vec<PathBuf> = std::fs::read_dir(&dir)
+                .unwrap()
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|ext| ext == "pdf"))
+                .collect();
+            dir_pdfs.sort();
+            pdfs.extend(dir_pdfs);
         }
-        let mut pdfs: Vec<PathBuf> = std::fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(|e| e.ok())
-            .map(|e| e.path())
-            .filter(|p| p.extension().is_some_and(|ext| ext == "pdf"))
-            .collect();
-        pdfs.sort();
         pdfs
     }
 
@@ -36,7 +47,7 @@ mod zugferd_extraction {
     fn extract_zugferd_from_all_pdfs() {
         let pdfs = list_pdfs();
         if pdfs.is_empty() {
-            eprintln!("No PDFs found in DATEV export directory, skipping");
+            eprintln!("No PDFs found in DATEV export directories, skipping");
             return;
         }
 
@@ -109,7 +120,11 @@ mod zugferd_extraction {
                 Ok(result) => result,
                 Err(e) => {
                     eprintln!("[PARSE ERR] {filename}: {e}");
-                    results.push((filename.to_string(), None, vec![format!("parse error: {e}")]));
+                    results.push((
+                        filename.to_string(),
+                        None,
+                        vec![format!("parse error: {e}")],
+                    ));
                     continue;
                 }
             };
@@ -151,7 +166,11 @@ mod zugferd_extraction {
                 all_errors.len()
             );
 
-            results.push((filename.to_string(), Some(invoice.number.clone()), all_errors));
+            results.push((
+                filename.to_string(),
+                Some(invoice.number.clone()),
+                all_errors,
+            ));
         }
 
         // Summary table
@@ -171,7 +190,10 @@ mod zugferd_extraction {
                 fail += 1;
             }
         }
-        eprintln!("\n{pass} passed, {fail} failed out of {} parsed", results.len());
+        eprintln!(
+            "\n{pass} passed, {fail} failed out of {} parsed",
+            results.len()
+        );
     }
 
     #[test]
