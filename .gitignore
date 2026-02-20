@@ -9,3 +9,4 @@ fuzz/corpus/
 .ralphy/
 PRD.md
 roadmap.md
+*.proptest-regressions
