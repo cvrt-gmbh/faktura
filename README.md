@@ -26,7 +26,7 @@ Covers the full invoice lifecycle: creation, validation, XML generation (XRechnu
 
 ```toml
 [dependencies]
-faktura = { version = "0.1", features = ["all"] }
+faktura = { version = "0.2", features = ["all"] }
 ```
 
 ```rust

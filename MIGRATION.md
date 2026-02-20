@@ -1,6 +1,6 @@
 # Migration Guide
 
-## 0.1.x → 0.2.0 (upcoming)
+## 0.1.x → 0.2.0
 
 ### `#[non_exhaustive]` on enums
 
