@@ -196,6 +196,165 @@ mod zugferd_extraction {
         );
     }
 
+    /// Extract all invoices from PDFs, parse, and return them.
+    #[cfg(feature = "xrechnung")]
+    fn extract_and_parse_all() -> Vec<faktura::core::Invoice> {
+        let mut invoices = Vec::new();
+        for pdf_path in &list_pdfs() {
+            let bytes = std::fs::read(pdf_path).unwrap();
+            let xml = match faktura::zugferd::extract_from_pdf(&bytes) {
+                Ok(xml) => xml,
+                Err(_) => continue,
+            };
+            if let Ok((invoice, _)) = faktura::xrechnung::from_xml(&xml) {
+                invoices.push(invoice);
+            }
+        }
+        invoices
+    }
+
+    #[test]
+    #[ignore = "requires DATEV PDF export in ~/Downloads"]
+    #[cfg(all(feature = "xrechnung", feature = "datev", feature = "gdpdu"))]
+    fn export_datev_extf_and_gdpdu_to_folder() {
+        use chrono::NaiveDate;
+
+        let invoices = extract_and_parse_all();
+        if invoices.is_empty() {
+            eprintln!("No invoices parsed, skipping");
+            return;
+        }
+
+        let out_dir = PathBuf::from("/Users/jh/Downloads/faktura-export");
+        std::fs::create_dir_all(&out_dir).unwrap();
+
+        eprintln!(
+            "Exporting {} invoices to {}",
+            invoices.len(),
+            out_dir.display()
+        );
+
+        // --- DATEV EXTF ---
+        let datev_config = faktura::datev::DatevConfigBuilder::new(1326467, 20000)
+            .fiscal_year_start(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap())
+            .chart(faktura::datev::ChartOfAccounts::SKR03)
+            .exported_by("faktura")
+            .description("CAVORT 2025+2026 re-export via faktura")
+            .build();
+
+        let extf =
+            faktura::datev::to_extf(&invoices, &datev_config).expect("DATEV EXTF export failed");
+        let extf_path = out_dir.join("EXTF_Buchungsstapel.csv");
+        std::fs::write(&extf_path, &extf).unwrap();
+        let extf_lines = extf.lines().count();
+        eprintln!(
+            "[DATEV] {} lines, {} bytes → {}",
+            extf_lines,
+            extf.len(),
+            extf_path.display()
+        );
+
+        // --- GDPdU ---
+        let gdpdu_config = faktura::gdpdu::GdpduConfig {
+            company_name: "CAVORT Konzepte GmbH".into(),
+            location: "Deutschland".into(),
+            comment: "GDPdU-Export Ausgangsrechnungen 2025-2026 via faktura".into(),
+        };
+
+        let gdpdu =
+            faktura::gdpdu::to_gdpdu(&invoices, &gdpdu_config).expect("GDPdU export failed");
+
+        let gdpdu_dir = out_dir.join("gdpdu");
+        std::fs::create_dir_all(&gdpdu_dir).unwrap();
+        std::fs::write(gdpdu_dir.join("index.xml"), &gdpdu.index_xml).unwrap();
+        std::fs::write(gdpdu_dir.join("gdpdu-01-08-2002.dtd"), gdpdu.dtd).unwrap();
+        for (name, content) in &gdpdu.files {
+            std::fs::write(gdpdu_dir.join(name), content).unwrap();
+            let lines = content.lines().count();
+            eprintln!("[GDPdU] {name}: {lines} lines, {} bytes", content.len());
+        }
+        eprintln!("[GDPdU] index.xml: {} bytes", gdpdu.index_xml.len());
+
+        // --- Summary / expected outcomes ---
+        let mut summary = String::new();
+        summary.push_str("# faktura Export — Expected Outcomes\n\n");
+        summary.push_str(&format!(
+            "Generated: {}\n",
+            chrono::Local::now().format("%Y-%m-%d %H:%M")
+        ));
+        summary.push_str("Source: 452 DATEV invoice PDFs (Jan 2025 – Jan 2026)\n");
+        summary.push_str(&format!(
+            "Parsed: {} invoices with embedded ZUGFeRD XML\n\n",
+            invoices.len()
+        ));
+
+        summary.push_str("## Files in this folder\n\n");
+        summary.push_str("| File | Description |\n");
+        summary.push_str("|------|-------------|\n");
+        summary.push_str(&format!(
+            "| `EXTF_Buchungsstapel.csv` | DATEV EXTF Buchungsstapel ({} lines, {} bytes) |\n",
+            extf_lines,
+            extf.len()
+        ));
+        summary.push_str("| `gdpdu/index.xml` | GDPdU index file (schema + table definitions) |\n");
+        summary.push_str("| `gdpdu/gdpdu-01-08-2002.dtd` | GDPdU DTD (required by IDEA) |\n");
+        for (name, content) in &gdpdu.files {
+            summary.push_str(&format!(
+                "| `gdpdu/{name}` | {} lines, {} bytes |\n",
+                content.lines().count(),
+                content.len()
+            ));
+        }
+        summary.push_str("\n## DATEV EXTF — What to check\n\n");
+        summary
+            .push_str("1. **Import into DATEV**: Rechnungswesen → Stapelverarbeitung → Import\n");
+        summary.push_str("2. **Header row**: Verify Berater-Nr (1326467), Mandanten-Nr (20000), WJ-Beginn (20250101)\n");
+        summary.push_str(&format!(
+            "3. **Row count**: {} data rows (1 row per VAT breakdown group, not per invoice)\n",
+            extf_lines.saturating_sub(2)
+        ));
+        summary.push_str("4. **Encoding**: ISO 8859-1 (Latin-1), CRLF line endings\n");
+        summary.push_str(
+            "5. **Account mapping**: SKR03 Automatikkonten (8400 for 19%, 8300 for 7%, etc.)\n",
+        );
+        summary.push_str(
+            "6. **Amounts**: Gross amounts in column 1, net in Belegfeld, VAT via BU-Schlüssel\n",
+        );
+        summary.push_str("7. **Dates**: Belegdatum matches invoice issue date (DDMM format)\n");
+        summary.push_str(
+            "8. **Credit notes**: TypeCode 381 invoices should have negative amounts (Haben)\n\n",
+        );
+
+        summary.push_str("## GDPdU — What to check\n\n");
+        summary.push_str("1. **Import into IDEA**: File → Import → GDPdU, select `index.xml`\n");
+        summary.push_str(
+            "2. **DTD validation**: `index.xml` references `gdpdu-01-08-2002.dtd` (included)\n",
+        );
+        summary.push_str(
+            "3. **Tables**: `kunden.csv` (unique buyers) + `rechnungsausgang.csv` (all invoices)\n",
+        );
+        summary.push_str(
+            "4. **Cross-reference**: Customer IDs in `rechnungsausgang.csv` match `kunden.csv`\n",
+        );
+        summary.push_str("5. **Encoding**: UTF-8, semicolon-separated\n");
+        summary.push_str("6. **Decimal format**: German notation (comma as decimal separator)\n");
+        summary.push_str("7. **Completeness**: Every invoice with embedded XML should appear\n\n");
+
+        summary.push_str("## Known issues\n\n");
+        summary.push_str(
+            "- 2 invoices (R-2025-09-1227, R-2025-09-1228) have an invalid buyer VAT ID\n",
+        );
+        summary
+            .push_str("  (`DE 040 80861508` — this is a Steuernummer, not a USt-IdNr). They are\n");
+        summary.push_str("  included in the export but will show validation warnings.\n");
+        summary
+            .push_str("- 83 PDFs had no embedded ZUGFeRD XML and are excluded from the export.\n");
+
+        std::fs::write(out_dir.join("EXPECTED.md"), &summary).unwrap();
+        eprintln!("\n[OK] All exports written to {}", out_dir.display());
+        eprintln!("[OK] See EXPECTED.md for what to check in DATEV and IDEA");
+    }
+
     #[test]
     #[ignore = "requires DATEV PDF export in ~/Downloads and KoSIT Docker"]
     #[cfg(feature = "xrechnung")]
