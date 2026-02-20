@@ -5,15 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2026-02-20
-
-### Changed
-
-- **release**: First stable release. API is frozen — breaking changes only in 2.0.
-- Battle-tested against 452 real-world DATEV invoice PDFs (369 with embedded ZUGFeRD XML), all validated via KoSIT Schematron.
-- 500+ tests, 6 fuzz targets (40M+ runs, 0 crashes), 16 property-based tests, 21 edge case tests, 11 criterion benchmarks.
-- DATEV EXTF and GDPdU exports verified against production data.
-
 ## [0.2.1] - 2026-02-20
 
 ### Fixed
